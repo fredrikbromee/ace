@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portfolio Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://unpkg.com/gridjs/dist/theme/mermaid.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Portfolio Analysis</h1>
+            <p>Data loaded from <code>trades.csv</code> and <code>cashflows.csv</code></p>
+        </header>
+
+        <div id="error-display" class="error-message"></div>
+
+        <div id="dashboard" class="dashboard-grid" style="display: none;">
+            <!-- Summary Stats -->
+            <div class="card stat-box">
+                <div class="stat-value" id="total-value">Loading...</div>
+                <div class="stat-label">Portfolio Value</div>
+            </div>
+            <div class="card stat-box">
+                <div class="stat-value" id="total-return">Loading...</div>
+                <div class="stat-label">Total Return</div>
+            </div>
+            <div class="card stat-box">
+                <div class="stat-value" id="cagr">Loading...</div>
+                <div class="stat-label">CAGR</div>
+            </div>
+            <div class="card stat-box">
+                <div class="stat-value" id="cash-balance">Loading...</div>
+                <div class="stat-label">Cash Balance</div>
+            </div>
+
+            <!-- Chart -->
+            <div class="card full-width">
+                <h2>Value Development</h2>
+                <div id="chart-container">
+                    <canvas id="portfolioChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Holdings Table -->
+            <div class="card full-width">
+                <h2>Current Holdings</h2>
+                <div id="holdings-table-container">
+                    <table id="holdings-table">
+                        <thead>
+                            <tr>
+                                <th>Stock</th>
+                                <th>Quantity</th>
+                                <th>Purchase Price</th>
+                                <th>Current NAV (Est)</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Transaction History -->
+            <div class="card full-width">
+                <h2>Transaction History</h2>
+                <div id="transactions-grid-container"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript modules loaded in dependency order -->
+    <script src="https://unpkg.com/gridjs/dist/gridjs.umd.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/dataService.js"></script>
+    <script src="js/portfolioEngine.js"></script>
+    <script src="js/dashboard.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
+

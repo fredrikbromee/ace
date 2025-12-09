@@ -1,0 +1,13 @@
+# Project Instructions for Cursor
+
+## Web Server Usage
+- **DO NOT** start Python web servers (e.g., `python -m http.server`, `python3 -m http.server`) to serve HTML files or any other static files
+- The user uses VS Code's built-in Live Server extension for serving files
+- When testing HTML files like `index.html`, assume the user will use their own Live Server setup
+- Never suggest or automatically run commands to start web servers
+
+## File Serving
+- Static files (HTML, CSS, JS) should be opened directly via Live Server in VS Code
+- Do not create or suggest server startup scripts
+- Do not modify code to require a server unless explicitly requested
+

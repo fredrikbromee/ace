@@ -115,6 +115,9 @@ const Dashboard = {
                         type: 'category',
                         grid: {
                             display: false
+                        },
+                        ticks: {
+                            display: false
                         }
                     },
                     y: {

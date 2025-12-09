@@ -1,6 +1,6 @@
 # ACE
 
-A log of trades I have done with instructions from an ai
+A log of trades I have done with instructions from an ai. Open at https://fredrikbromee.github.io/ace/
 
 ## Quick Start 
 

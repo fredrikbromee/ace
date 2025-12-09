@@ -215,9 +215,15 @@ const Dashboard = {
                 row.pnl !== null && row.pnl !== undefined ? Utils.formatCurrency(row.pnl) : ''
             ]),
             search: true,
-            sort: true,
-            resizable: true,
-            autoWidth: true
+            sort: false,
+            resizable: false,
+            autoWidth: false,
+            fixedHeader: true,
+            style: {
+                table: {
+                    width: '100%'
+                }
+            }
         });
 
         this.transactionsGrid.render(container);

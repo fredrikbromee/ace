@@ -1,6 +1,5 @@
 :root {
     --primary-color: #2E86AB;
-    --secondary-color: #A23B72;
     --bg-color: #f4f4f9;
     --card-bg: #ffffff;
     --text-color: #333333;
@@ -12,36 +11,45 @@ body {
     background-color: var(--bg-color);
     color: var(--text-color);
     margin: 0;
-    padding: 20px;
+    padding: 5px;
     line-height: 1.6;
 }
 
 .container {
-    max-width: 1200px;
+    max-width: 100vw;
+    width: 100%;
     margin: 0 auto;
+    padding: 0;
+    box-sizing: border-box;
 }
 
 header {
-    margin-bottom: 30px;
+    margin-bottom: 15px;
 }
 
 h1 {
     color: var(--primary-color);
-    margin-bottom: 10px;
+    margin-bottom: 5px;
+    font-size: 1.5em;
 }
 
 .dashboard-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 20px;
-    margin-bottom: 30px;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+    gap: 8px;
+    margin-bottom: 12px;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .card {
     background-color: var(--card-bg);
-    border-radius: 8px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    padding: 20px;
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    padding: 10px;
+    width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
 }
 
 .full-width {
@@ -77,20 +85,29 @@ h1 {
 
 #chart-container {
     position: relative;
-    height: 500px;
+    height: 40vh;
     width: 100%;
+    min-height: 250px;
+    max-height: 500px;
 }
 
 table {
     width: 100%;
     border-collapse: collapse;
-    margin-top: 10px;
+    margin-top: 8px;
+    font-size: 0.9em;
+}
+
+#holdings-table-container {
+    overflow-x: auto;
+    width: 100%;
 }
 
 th, td {
     text-align: left;
-    padding: 12px;
+    padding: 8px;
     border-bottom: 1px solid #eee;
+    white-space: nowrap;
 }
 
 th {
@@ -98,18 +115,65 @@ th {
     font-weight: 600;
 }
 
-.pnl-positive { 
-    color: #28a745 !important; 
-    font-weight: bold; 
-}
-.pnl-negative { 
-    color: #dc3545 !important; 
-    font-weight: bold; 
-}
-
 /* Transactions Grid.js styling */
 #transactions-grid-container {
     margin-top: 10px;
-    overflow-x: auto;
     width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow: visible;
+}
+
+/* Ensure Grid.js respects container width */
+#transactions-grid-container .gridjs-wrapper {
+    width: 100% !important;
+    max-width: 100%;
+    overflow: hidden !important;
+}
+
+#transactions-grid-container .gridjs-container {
+    width: 100% !important;
+    max-width: 100%;
+    overflow: hidden !important;
+}
+
+#transactions-grid-container .gridjs-head,
+#transactions-grid-container .gridjs-search {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+#transactions-grid-container .gridjs-table,
+#transactions-grid-container table {
+    width: 100% !important;
+    max-width: 100%;
+    table-layout: fixed;
+    min-width: 0;
+}
+
+#transactions-grid-container .gridjs-td,
+#transactions-grid-container .gridjs-th {
+    overflow: hidden !important;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 0;
+}
+
+#transactions-grid-container thead,
+#transactions-grid-container tbody,
+#transactions-grid-container tr {
+    width: 100%;
+    max-width: 100%;
+}
+
+/* Make Grid.js table fonts smaller on mobile, larger on desktop */
+#transactions-grid-container .gridjs-th {
+    font-size: clamp(0.5rem, 0.8vw, 0.7rem);
+    padding: clamp(2px, 0.5vw, 6px) clamp(4px, 1vw, 8px);
+}
+
+#transactions-grid-container .gridjs-td {
+    font-size: clamp(0.5rem, 0.8vw, 0.8rem);
+    padding: clamp(2px, 0.5vw, 6px) clamp(2px, 0.8vw, 8px);
 }

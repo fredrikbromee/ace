@@ -1,78 +1,42 @@
-# ACE Project
+# ACE
 
-Python project with Jupyter notebook support.
+A log of trades I have done with instructions from an ai
 
-## Python Setup
+## Quick Start 
 
-This project uses **Python 3.12.10** via Homebrew, managed through a virtual environment.
-
-### Quick Start
-
-1. **Activate the virtual environment**:
-   ```bash
-   source venv/bin/activate
-   ```
-   Or use the helper function (if you've sourced your `.zshrc`):
-   ```bash
-   ace-env
-   ```
-
-2. **Install dependencies** (if not already installed):
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Run Jupyter**:
-   ```bash
-   jupyter notebook
-   # or
-   jupyter lab
-   ```
-
-## Python Version Management
-
-Your system is configured to use **Homebrew Python 3.12** as the default. The `.zshrc` file includes:
-- Aliases for `python3` and `pip3` pointing to Homebrew Python 3.12
-- PATH configuration to prioritize Homebrew binaries
-
-### Available Python Versions
-
-- **Python 3.12.10** (Homebrew) - `/opt/homebrew/bin/python3.12` - **DEFAULT**
-- Python 3.9.6 (System) - `/usr/bin/python3` - Legacy, not recommended for new projects
-
-## Virtual Environment
-
-The project uses a virtual environment located at `venv/` to isolate dependencies. This is already in `.gitignore` and should not be committed.
-
-### Creating a New Virtual Environment
-
-If you need to recreate the virtual environment:
-
-```bash
-# Remove old venv
-rm -rf venv
-
-# Create new venv with Homebrew Python 3.12
-/opt/homebrew/bin/python3.12 -m venv venv
-
-# Activate and install dependencies
-source venv/bin/activate
-pip install -r requirements.txt
-```
-
-## VS Code / Cursor Setup
-
-See `VSCODE_SETUP.md` for instructions on setting up Jupyter extensions in your editor.
+1. Open `index.html` in your browser or use VS Code's Live Server extension
+2. The dashboard will automatically load data from `trades.csv` and `cashflows.csv`
 
 ## Project Structure
 
 ```
 ace/
-├── venv/              # Virtual environment (gitignored)
-├── .gitignore         # Git ignore patterns
-├── requirements.txt   # Python dependencies
-├── README.md          # This file
-└── VSCODE_SETUP.md    # Editor setup guide
+├── index.html          # Main HTML file
+├── styles.css          # Stylesheet
+├── trades.csv          # Trading data
+├── cashflows.csv       # Deposits and withdrawals
+├── js/
+│   ├── config.js       # Configuration
+│   ├── utils.js        # Utility functions
+│   ├── dataService.js  # CSV data loading
+│   ├── portfolioEngine.js  # Portfolio calculation engine
+│   ├── dashboard.js    # Dashboard UI rendering
+│   └── main.js         # Application entry point
+└── README.md           # This file
 ```
 
+## Features
 
+- Portfolio value tracking over time
+- Total return and CAGR calculations
+- Cash balance and NAV tracking
+- Transaction history visualization
+- Current holdings display
+
+## Data Format
+
+### trades.csv
+Expected columns: `Date`, `Stock`, `Action`, `Quantity`, `Price`, `Total_Value`
+
+### cashflows.csv
+Expected columns: `Date`, `Type`, `Amount`, `Description`

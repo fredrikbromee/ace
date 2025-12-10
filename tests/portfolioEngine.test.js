@@ -96,6 +96,93 @@ const tests = [
             assert.strictEqual(stats.cash, 800, 'Cash should be 1000 - 200');
             assert.strictEqual(stats.portfolioValue, 800, 'Portfolio value should equal cash');
         }
+    },
+    {
+        name: 'CAGR: Simple 3% return over 1 year',
+        run: () => {
+            const transactions = [
+                { Date: '2024-01-01', Action: 'Deposit', Total_Value: 1000 }
+            ].reverse();
+
+            const engine = new PortfolioEngine(transactions);
+            engine.process();
+            // Manually set portfolio value to simulate 3% return
+            engine.history[engine.history.length - 1].portfolioValue = 1030;
+            // Update the date to be 1 year later for proper CAGR calculation
+            engine.history[engine.history.length - 1].date = new Date('2025-01-01');
+            const stats = engine.getStats();
+
+            assert.ok(stats.cagr !== 0, `CAGR should not be 0, got ${stats.cagr}%`);
+            assert.ok(stats.cagr > 0, `CAGR should be positive, got ${stats.cagr}%`);
+            // Allow wider range due to solver approximation
+            assert.ok(stats.cagr >= 2.0 && stats.cagr <= 4.0, `CAGR should be around 3%, got ${stats.cagr}%`);
+        }
+    },
+    {
+        name: 'CAGR: Simple 3% return over 2 years',
+        run: () => {
+            const transactions = [
+                { Date: '2024-01-01', Action: 'Deposit', Total_Value: 1000 }
+            ].reverse();
+
+            const engine = new PortfolioEngine(transactions);
+            engine.process();
+            // Manually set portfolio value to simulate 3% return over 2 years
+            // 1000 * 1.03^2 = 1060.9
+            engine.history[engine.history.length - 1].portfolioValue = 1060.9;
+            // Update the date to be 2 years later
+            engine.history[engine.history.length - 1].date = new Date('2026-01-01');
+            const stats = engine.getStats();
+
+            assert.ok(stats.cagr !== 0, `CAGR should not be 0, got ${stats.cagr}%`);
+            assert.ok(stats.cagr > 0, `CAGR should be positive, got ${stats.cagr}%`);
+            // Allow wider range due to solver approximation
+            assert.ok(stats.cagr >= 2.0 && stats.cagr <= 4.0, `CAGR should be around 3%, got ${stats.cagr}%`);
+        }
+    },
+    {
+        name: 'CAGR: Deposit and buy, then value increases 3%',
+        run: () => {
+            const transactions = [
+                { Date: '2024-01-01', Action: 'Deposit', Total_Value: 1000 },
+                { Date: '2024-01-02', Action: 'Köp', Stock: 'ABC', Quantity: 10, Price: 100, Total_Value: -1000 }
+            ].reverse();
+
+            const engine = new PortfolioEngine(transactions);
+            engine.process();
+            // Simulate stock price increase to 103 (3% gain)
+            engine.purchasePrices['ABC'] = 103;
+            // Recalculate portfolio value
+            const last = engine.history[engine.history.length - 1];
+            last.nav = 10 * 103; // 10 shares * 103 price
+            last.portfolioValue = last.cash + last.nav;
+            // Update the date to be 1 year after first deposit for proper CAGR calculation
+            last.date = new Date('2025-01-01');
+            const stats = engine.getStats();
+
+            assert.ok(stats.cagr !== 0, `CAGR should not be 0, got ${stats.cagr}%`);
+            assert.ok(stats.cagr > 0, `CAGR should be positive, got ${stats.cagr}%`);
+            // Allow wider range due to solver approximation
+            assert.ok(stats.cagr >= 2.0 && stats.cagr <= 4.0, `CAGR should be around 3%, got ${stats.cagr}%`);
+        }
+    },
+    {
+        name: 'CAGR: Verify not zero when return is positive',
+        run: () => {
+            const transactions = [
+                { Date: '2024-01-01', Action: 'Deposit', Total_Value: 1000 }
+            ].reverse();
+
+            const engine = new PortfolioEngine(transactions);
+            engine.process();
+            const stats = engine.getStats();
+            
+            // Even with no gain, CAGR should not be exactly 0 (might be very small or negative)
+            // But if there's a positive return, CAGR should definitely not be 0
+            if (stats.totalReturnPct > 0) {
+                assert.ok(stats.cagr !== 0, `CAGR should not be 0 when return is ${stats.totalReturnPct}%, got ${stats.cagr}%`);
+            }
+        }
     }
 ];
 

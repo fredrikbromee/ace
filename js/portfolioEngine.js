@@ -213,13 +213,11 @@ class PortfolioEngine {
                     flows.push(Math.abs(amount));
                 }
                 dates.push(Utils.parseDate(row.Date));
-            } else if (action === 'Köp' || (row.Quantity && row.Quantity > 0)) {
-                // Buy trades are also cashflows (money out)
-                flows.push(-Math.abs(row.Total_Value));
-                dates.push(Utils.parseDate(row.Date));
             }
-            // Sells are internal to portfolio (cash stays), unless withdrawn.
+            // Buy and sell trades are internal to portfolio (cash stays), unless withdrawn.
+            // They convert cash<->stocks but don't represent external cashflows.
             // Notebook logic: "Sells are NOT cash flows because the proceeds stay in the portfolio as cash"
+            // Same applies to buys: they convert cash to stocks, but value stays in portfolio
         });
         
         // Add Final Value

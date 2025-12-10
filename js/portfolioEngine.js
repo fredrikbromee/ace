@@ -1,8 +1,7 @@
 // --- Portfolio Engine ---
 class PortfolioEngine {
-    constructor(trades, cashflows) {
-        this.trades = trades;
-        this.cashflows = cashflows;
+    constructor(transactions) {
+        this.transactions = transactions;
         this.history = [];
         this.currentPositions = {};
         this.purchasePrices = {}; // Latest purchase price per stock
@@ -12,72 +11,55 @@ class PortfolioEngine {
     }
 
     process() {
-        // 1. Unify Events
+        // File is reverse chronological (newest first), reverse it for processing (oldest first)
+        const reversedTransactions = [...this.transactions].reverse();
+        
+        // 1. Process all transactions in chronological order (oldest first)
         let events = [];
 
-        // Add trades
-        this.trades.forEach(trade => {
-            events.push({
-                date: Utils.parseDate(trade.Date),
-                type: 'Trade',
-                action: trade.Action,
-                stock: trade.Stock,
-                quantity: trade.Quantity,
-                price: trade.Price,
-                totalValue: trade.Total_Value,
-                original: trade
-            });
+        // Process each transaction row, identifying type based on Action column
+        reversedTransactions.forEach((row, index) => {
+            const action = row.Action;
+            
+            // Check if it's a cashflow (Deposit or Withdrawal)
+            // Check Action column for "Deposit"/"Withdrawal"
+            const isDeposit = action === 'Deposit';
+            const isWithdrawal = action === 'Withdrawal';
+            
+            if (isDeposit || isWithdrawal) {
+                // Parse amount from Total_Value column
+                let amount = row.Total_Value || 0;
+                
+                const cashflowAction = isDeposit ? 'Deposit' : 'Withdrawal';
+                if (isDeposit) {
+                    amount = Math.abs(amount);
+                } else {
+                    amount = -Math.abs(amount);
+                }
+                
+                events.push({
+                    date: Utils.parseDate(row.Date),
+                    type: 'Cashflow',
+                    action: cashflowAction,
+                    amount: amount,
+                    original: row
+                });
+            } else {
+                // It's a trade (Köp, Sälj, etc.)
+                events.push({
+                    date: Utils.parseDate(row.Date),
+                    type: 'Trade',
+                    action: row.Action,
+                    stock: row.Stock,
+                    quantity: row.Quantity,
+                    price: row.Price,
+                    totalValue: row.Total_Value,
+                    original: row
+                });
+            }
         });
 
-        // Add cashflows
-        this.cashflows.forEach(cf => {
-            // Normalize Amount: Notebook logic says "Original_Amount" logic.
-            // Let's look at notebook:
-            // if Type == Deposit -> Amount = Original_Amount (Positive)
-            // if Type == Withdrawal -> Amount = -Original_Amount (Negative)
-            // CSV has "Amount". Let's assume CSV Amount is absolute or signed?
-            // Notebook: "Convert Amount: positive for deposits, negative for withdrawals"
-            // But CSV snippet shows: Date, Type, Amount.
-            // Notebook code: `cashflows_df['Original_Amount'] = cashflows_df['Amount']` then applies sign.
-            // This implies the CSV "Amount" is likely always positive absolute value.
-            // Let's assume Type 'Deposit' adds to cash, 'Withdrawal' subtracts.
-            
-            let amount = cf.Amount;
-            if (cf.Type === 'Deposit') {
-                amount = Math.abs(amount); 
-            } else if (cf.Type === 'Withdrawal') {
-                amount = -Math.abs(amount);
-            }
-            
-            events.push({
-                date: Utils.parseDate(cf.Date),
-                type: 'Cashflow',
-                action: cf.Type,
-                amount: amount,
-                original: cf
-            });
-        });
-
-        // Sort: Date asc. If same date: Cashflow before Trade, then Buy before Sell
-        events.sort((a, b) => {
-            if (a.date < b.date) return -1;
-            if (a.date > b.date) return 1;
-            // Same date
-            if (a.type === 'Cashflow' && b.type === 'Trade') return -1;
-            if (a.type === 'Trade' && b.type === 'Cashflow') return 1;
-            // Both are trades on same date: Buy before Sell
-            if (a.type === 'Trade' && b.type === 'Trade') {
-                const aQty = a.quantity || 0;
-                const bQty = b.quantity || 0;
-                // Positive quantity = Buy, Negative = Sell
-                // Buys (positive) should come before Sells (negative)
-                if (aQty > 0 && bQty < 0) return -1;
-                if (aQty < 0 && bQty > 0) return 1;
-            }
-            return 0;
-        });
-        
-        // Store processed events for transaction table
+        // Store processed events for transaction table (in chronological order for processing)
         this.processedEvents = events;
 
         // 2. Process Events
@@ -209,40 +191,40 @@ class PortfolioEngine {
         let flows = [];
         let dates = [];
 
-        // From Cashflows
-        this.cashflows.forEach(cf => {
-            // Original notebook logic for IRR:
-            // Deposit -> Negative flow
-            // Withdrawal -> Positive flow
-            let amount = cf.Amount; // CSV value
-            // If CSV Amount is unsigned, check Type
-            if (cf.Type === 'Deposit') {
-                flows.push(-Math.abs(amount));
-            } else {
-                flows.push(Math.abs(amount));
+        // From transactions - extract deposits and withdrawals (in chronological order)
+        const reversedTransactions = [...this.transactions].reverse();
+        reversedTransactions.forEach(row => {
+            const action = row.Action;
+            
+            // Check if it's a cashflow (Deposit or Withdrawal)
+            const isDeposit = action === 'Deposit';
+            const isWithdrawal = action === 'Withdrawal';
+            
+            if (isDeposit || isWithdrawal) {
+                // Parse amount from Total_Value column
+                let amount = row.Total_Value || 0;
+                
+                // Original notebook logic for IRR:
+                // Deposit -> Negative flow (money out)
+                // Withdrawal -> Positive flow (money in)
+                if (isDeposit) {
+                    flows.push(-Math.abs(amount));
+                } else {
+                    flows.push(Math.abs(amount));
+                }
+                dates.push(Utils.parseDate(row.Date));
+            } else if (action === 'Köp' || (row.Quantity && row.Quantity > 0)) {
+                // Buy trades are also cashflows (money out)
+                flows.push(-Math.abs(row.Total_Value));
+                dates.push(Utils.parseDate(row.Date));
             }
-            dates.push(Utils.parseDate(cf.Date));
+            // Sells are internal to portfolio (cash stays), unless withdrawn.
+            // Notebook logic: "Sells are NOT cash flows because the proceeds stay in the portfolio as cash"
         });
         
         // Add Final Value
         flows.push(endValue);
         dates.push(endDate);
-
-        // If no cashflows, fallback to trades (as per notebook)
-        // The notebook had a fallback if cashflows_df was empty. 
-        // We assume cashflows might be empty here too.
-        if (this.cashflows.length === 0) {
-             this.trades.forEach(trade => {
-                 if (trade.Quantity > 0) { // Buy
-                     flows.push(-Math.abs(trade.Total_Value)); // Money out
-                     dates.push(Utils.parseDate(trade.Date));
-                 }
-                 // Sells are internal to portfolio (cash stays), unless withdrawn.
-                 // Notebook logic: "Sells are NOT cash flows because the proceeds stay in the portfolio as cash"
-             });
-             // Re-add final value (it was added above, but if flows was just 1 item, clean up)
-             // Actually, just append to flows.
-        }
         
         // Solve XIRR
         // Using a simple iterative solver (Newton-Raphson or Bisection)

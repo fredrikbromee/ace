@@ -151,10 +151,12 @@ const Dashboard = {
     renderTransactions(historyEvents) {
         const container = document.getElementById('transactions-grid-container');
         
-        // Reverse chronological order
-        const sortedEvents = [...historyEvents].sort((a, b) => b.date - a.date);
-
-        // Prepare data (No changes to logic here, just the view below)
+        // Use the array's natural order.
+        // Since processing was done oldest-first (reversed from file), 
+        // we simply reverse the processed array to restore newest-first (file order).
+        const sortedEvents = [...historyEvents].reverse();
+        
+        // Prepare data
         const gridData = sortedEvents.map(event => {
             const dateStr = event.date.toISOString().slice(0, 10);
             if (event.type === 'Cashflow') {

@@ -1,0 +1,5 @@
+{
+  "devDependencies": {
+    "papaparse": "^5.5.3"
+  }
+}

@@ -5,7 +5,7 @@ A log of trades I have done with instructions from an ai. Open at https://fredri
 ## Quick Start 
 
 1. Open `index.html` in your browser or use VS Code's Live Server extension
-2. The dashboard will automatically load data from `trades.csv` and `cashflows.csv`
+2. The dashboard will automatically load data from `transactions.csv`
 
 ## Project Structure
 
@@ -13,8 +13,7 @@ A log of trades I have done with instructions from an ai. Open at https://fredri
 ace/
 ├── index.html          # Main HTML file
 ├── styles.css          # Stylesheet
-├── trades.csv          # Trading data
-├── cashflows.csv       # Deposits and withdrawals
+├── transactions.csv    # All transactions (trades, deposits, withdrawals)
 ├── js/
 │   ├── config.js       # Configuration
 │   ├── utils.js        # Utility functions
@@ -35,8 +34,9 @@ ace/
 
 ## Data Format
 
-### trades.csv
-Expected columns: `Date`, `Stock`, `Action`, `Quantity`, `Price`, `Total_Value`
+### transactions.csv
+Expected columns: `Date`, `Account`, `Action`, `Stock`, `Quantity`, `Price`, `Total_Value`
 
-### cashflows.csv
-Expected columns: `Date`, `Type`, `Amount`, `Description`
+- **Trades**: Action is "Köp" (Buy) or "Sälj" (Sell), with Stock, Quantity, Price, and Total_Value filled
+- **Deposits/Withdrawals**: Action is "Deposit" or "Withdrawal", with Total_Value containing the amount (Stock, Quantity, Price are empty)
+- Transactions are processed in file order

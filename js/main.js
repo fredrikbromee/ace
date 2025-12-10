@@ -6,7 +6,7 @@
         console.log('Data loaded successfully');
 
         // 2. Process Data
-        const engine = new PortfolioEngine(data.trades, data.cashflows);
+        const engine = new PortfolioEngine(data.transactions);
         const history = engine.process();
         const stats = engine.getStats();
 

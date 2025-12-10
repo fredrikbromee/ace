@@ -5,7 +5,8 @@ class PortfolioEngine {
         this.history = [];
         this.currentPositions = {};
         this.purchasePrices = {}; // Latest purchase price per stock
-        this.avgCost = {}; // Average cost per share for P&L
+        this.avgPrice = {}; // Average price per share for cost basis (without fees)
+        this.realizedPnL = 0; // Track realized losses from fees separately
         this.cashBalance = 0;
         this.totalDeposits = 0;
     }
@@ -78,67 +79,76 @@ class PortfolioEngine {
                 // So we always ADD Total_Value to cash.
                 this.cashBalance += event.totalValue;
 
-                // Update Positions & Calculate P&L for Sells
+                // Update Positions & Calculate P&L
                 const stock = event.stock;
                 const qty = event.quantity; // Positive for buy, Negative for sell
                 
                 if (!this.currentPositions[stock]) this.currentPositions[stock] = 0;
-                if (!this.avgCost[stock]) this.avgCost[stock] = 0;
+                if (!this.avgPrice[stock]) this.avgPrice[stock] = 0;
 
                 if (qty > 0) {
-                    // BUY: Update Average Cost
-                    // New Avg Cost = ((Current Qty * Current Avg) + (Buy Qty * Buy Price)) / (Current Qty + Buy Qty)
-                    // Note: Buy Price here should probably include fees? Or strictly price?
-                    // Typically tax P&L uses total cost basis (including fees).
-                    // Trade.Total_Value is negative cost. abs(Total_Value) is what we paid.
+                    // BUY: Calculate fees and record as immediate realized loss
+                    // Cost basis = Price * Quantity (without fees)
+                    const priceValue = event.price * qty; // Price * qty (without fees)
                     const totalCost = Math.abs(event.totalValue); // Includes price * qty + fees
-                    const currentQty = this.currentPositions[stock];
-                    const currentTotalCost = currentQty * this.avgCost[stock];
+                    const fees = totalCost - priceValue; // Fees paid
                     
-                    this.avgCost[stock] = (currentTotalCost + totalCost) / (currentQty + qty);
+                    // Record fees as immediate realized loss
+                    this.realizedPnL -= fees;
+                    
+                    // Update average price (without fees) for cost basis
+                    const currentQty = this.currentPositions[stock];
+                    const currentPriceValue = currentQty * this.avgPrice[stock];
+                    this.avgPrice[stock] = (currentPriceValue + priceValue) / (currentQty + qty);
+                    
                     this.currentPositions[stock] += qty;
                     
-                    // Update Purchase Price (only on buys) - for NAV estimation
+                    // Update Purchase Price (only on buys) - for display purposes
                     this.purchasePrices[stock] = event.price;
 
                 } else if (qty < 0) {
-                    // SELL: Calculate Realized P&L
-                    // P&L = Proceeds - (Sold Qty * Avg Cost)
-                    // Proceeds = Total_Value (positive, net of fees)
-                    // Sold Qty is negative, so use Math.abs(qty)
+                    // SELL: Calculate fees and price P&L separately
                     const sellQty = Math.abs(qty);
-                    const proceeds = event.totalValue;
+                    const proceeds = event.totalValue; // Net proceeds (after fees)
+                    const priceValue = event.price * sellQty; // Gross proceeds (before fees)
+                    const sellFees = priceValue - proceeds; // Fees on sell
                     
-                    // Calculate cost basis using average cost BEFORE updating position
-                    // If avgCost is 0 or not set, we can't calculate P&L (shouldn't happen for valid sells)
-                    const costBasis = sellQty * (this.avgCost[stock] || 0);
+                    // Record sell fees as realized loss
+                    this.realizedPnL -= sellFees;
                     
-                    event.realizedPnL = proceeds - costBasis;
+                    // Calculate realized gain/loss on price movement (cost basis is price only)
+                    const costBasis = sellQty * (this.avgPrice[stock] || 0); // Cost basis (price only, no fees)
+                    const pricePnL = proceeds - costBasis; // P&L from price movement
+                    
+                    // Store price P&L for transaction history
+                    event.realizedPnL = pricePnL;
                     
                     // Update position AFTER calculating P&L
                     this.currentPositions[stock] += qty; // Reduce position
                     
-                    // Don't reset avgCost when position closes - keep it for historical reference
-                    // Only reset if position becomes exactly 0
+                    // Reset position if exactly 0
                     if (Math.abs(this.currentPositions[stock]) < 0.0001) {
                         this.currentPositions[stock] = 0;
-                        // Keep avgCost for future reference if needed
-                        // Only reset if we want to start fresh (but this breaks P&L tracking)
                     }
                 }
             }
 
             // Snapshot State
-            // Calculate NAV based on latest purchase prices
+            // Calculate NAV based on cost basis (average price without fees)
             let nav = 0;
             for (const [stock, qty] of Object.entries(this.currentPositions)) {
-                if (qty !== 0 && this.purchasePrices[stock]) {
-                    nav += qty * this.purchasePrices[stock];
+                if (qty !== 0 && this.avgPrice[stock]) {
+                    nav += qty * this.avgPrice[stock];
                 }
             }
 
+            // Portfolio value = cash + cost basis
+            // Total P&L = realized P&L (fees) + unrealized P&L (price movements)
+            // For now, unrealized P&L is 0 since NAV = cost basis
+            // (Would need current market prices to calculate unrealized gains/losses)
             const portfolioValue = this.cashBalance + nav;
-            const pnl = portfolioValue - this.totalDeposits;
+            const totalPnL = this.realizedPnL; // Currently only realized losses (fees)
+            const pnl = portfolioValue - this.totalDeposits; // This should equal totalPnL
 
             this.history.push({
                 date: date,
@@ -147,6 +157,7 @@ class PortfolioEngine {
                 portfolioValue: portfolioValue,
                 totalDeposits: this.totalDeposits,
                 pnl: pnl,
+                realizedPnL: this.realizedPnL,
                 positions: { ...this.currentPositions } // Shallow copy
             });
         });
@@ -214,10 +225,6 @@ class PortfolioEngine {
                 }
                 dates.push(Utils.parseDate(row.Date));
             }
-            // Buy and sell trades are internal to portfolio (cash stays), unless withdrawn.
-            // They convert cash<->stocks but don't represent external cashflows.
-            // Notebook logic: "Sells are NOT cash flows because the proceeds stay in the portfolio as cash"
-            // Same applies to buys: they convert cash to stocks, but value stays in portfolio
         });
         
         // Add Final Value

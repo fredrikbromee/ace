@@ -1,9 +1,6 @@
 const assert = require('assert');
-const fs = require('fs');
 const path = require('path');
-const vm = require('vm');
 
-// Load Papa.parse (npm package for Node.js)
 let Papa;
 try {
     Papa = require('papaparse');
@@ -12,7 +9,6 @@ try {
     process.exit(1);
 }
 
-// Mock CONFIG
 global.CONFIG = {
     files: {
         transactions: 'transactions.csv'
@@ -22,34 +18,15 @@ global.CONFIG = {
     }
 };
 
-// Mock Utils
 global.Utils = {
     showError: (msg) => {
         console.error('Error:', msg);
     }
 };
 
-// Load DataService
-function loadDataService() {
-    const sandbox = {
-        console: console,
-        Papa: Papa,
-        CONFIG: global.CONFIG,
-        Utils: global.Utils,
-        window: {},
-    };
-    vm.createContext(sandbox);
+global.Papa = Papa;
+const DataService = require(path.join(__dirname, '..', 'js/dataService.js'));
 
-    const code = fs.readFileSync(path.join(__dirname, '..', 'js/dataService.js'), 'utf8');
-    const script = code + '\n;window.DataService = DataService;';
-
-    vm.runInContext(script, sandbox);
-    return sandbox.window.DataService;
-}
-
-const DataService = loadDataService();
-
-// Helper to create CSV string from data
 function createCSV(data) {
     if (data.length === 0) return '';
     const headers = Object.keys(data[0]);
@@ -57,7 +34,6 @@ function createCSV(data) {
     return [headers.join(','), ...rows].join('\n');
 }
 
-// Test CSV data
 const validCSV = `Date,Account,Action,Stock,Quantity,Price,Total_Value
 2024-01-01,123,Deposit,,,,"1000"
 2024-01-02,123,Köp,ABC,10,50,-500`;
@@ -70,11 +46,9 @@ const missingColumnsCSV = `Date,Action
 const invalidCSV = `Date,Account,Action,Stock,Quantity,Price,Total_Value
 2024-01-01,123,Deposit,,,,"invalid"`;
 
-// Mock Papa.parse to use our CSV strings
 function setupPapaMock(csvString, forceErrors = null) {
     const originalParse = Papa.parse;
     Papa.parse = (filename, options) => {
-        // If download is true, simulate file download by parsing our CSV string
         if (options.download) {
             const result = Papa.parse(csvString, {
                 header: true,
@@ -85,31 +59,26 @@ function setupPapaMock(csvString, forceErrors = null) {
                 escapeChar: options.escapeChar || '"',
             });
             
-            // Override errors if forced
             if (forceErrors) {
                 result.errors = forceErrors;
             }
             
-            // Call complete callback asynchronously to match real behavior
             setTimeout(() => {
                 if (options.complete) {
                     options.complete(result);
                 }
             }, 0);
         } else {
-            // If not downloading, use original parse
             return originalParse(filename, options);
         }
     };
     return () => { Papa.parse = originalParse; };
 }
 
-// Helper to wait for async operations
 function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Test cases
 const tests = [
     {
         name: 'fetchAndParse - valid CSV',
@@ -150,8 +119,6 @@ const tests = [
         run: async () => {
             const restore = setupPapaMock(emptyCSV);
 
-            // Papa.parse with header:true returns empty array for header-only CSV
-            // Our code checks if data is empty and should throw
             try {
                 await DataService.fetchAndParse('test.csv', ['Date']);
                 await delay(10);
@@ -290,12 +257,10 @@ async function runTests() {
     return failed === 0;
 }
 
-// Run if executed directly
 if (require.main === module) {
     runTests().then(success => {
         process.exit(success ? 0 : 1);
     });
 }
 
-// Export for use with test frameworks
 module.exports = { DataService, tests, runTests };

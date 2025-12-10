@@ -1,4 +1,3 @@
-// --- Data Service ---
 class DataService {
     static async loadData() {
         try {
@@ -16,8 +15,8 @@ class DataService {
                 download: true,
                 header: true,
                 skipEmptyLines: true,
-                dynamicTyping: true, // Auto-convert numbers
-                quotes: true, // Handle quoted fields
+                dynamicTyping: true,
+                quotes: true,
                 quoteChar: '"',
                 escapeChar: '"',
                 complete: (results) => {
@@ -32,7 +31,6 @@ class DataService {
                         return;
                     }
 
-                    // Validate headers
                     const headers = results.meta.fields;
                     const missing = requiredCols.filter(col => !headers.includes(col));
                     if (missing.length > 0) {
@@ -40,18 +38,14 @@ class DataService {
                         return;
                     }
 
-                    // Validate data quality - check for invalid numeric values
                     for (let i = 0; i < data.length; i++) {
                         const row = data[i];
-                        const rowNum = i + 2; // +2 because row 1 is header, and arrays are 0-indexed
+                        const rowNum = i + 2;
                         
-                        // Check numeric columns
                         const numericColumns = ['Quantity', 'Price', 'Total_Value'];
                         for (const col of numericColumns) {
                             if (row[col] !== null && row[col] !== undefined && row[col] !== '') {
-                                // If it's a string, it might contain spaces or invalid characters
                                 if (typeof row[col] === 'string') {
-                                    // Check for spaces or other invalid characters
                                     if (/\s/.test(row[col])) {
                                         reject(new Error(
                                             `Invalid value in ${filename} row ${rowNum}, column "${col}": "${row[col]}" contains spaces. ` +
@@ -59,7 +53,6 @@ class DataService {
                                         ));
                                         return;
                                     }
-                                    // Try to parse it
                                     const parsed = parseFloat(row[col]);
                                     if (isNaN(parsed)) {
                                         reject(new Error(
@@ -85,5 +78,9 @@ class DataService {
             });
         });
     }
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = DataService;
 }
 

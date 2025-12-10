@@ -1,13 +1,11 @@
-// --- UI / Dashboard ---
 const Dashboard = {
-    transactionsGrid: null, // Store Grid.js instance
+    transactionsGrid: null,
     renderStats(stats) {
         document.getElementById('total-value').textContent = Utils.formatCurrency(stats.portfolioValue);
         document.getElementById('total-return').textContent = Utils.formatPercent(stats.totalReturnPct);
         document.getElementById('cagr').textContent = Utils.formatPercent(stats.cagr);
         document.getElementById('cash-balance').textContent = Utils.formatCurrency(stats.cash);
         
-        // Show dashboard
         document.getElementById('dashboard').style.display = 'grid';
     },
 
@@ -15,7 +13,6 @@ const Dashboard = {
         const tbody = document.querySelector('#holdings-table tbody');
         tbody.innerHTML = '';
 
-        // Filter non-zero holdings
         const holdings = Object.entries(stats.holdings).filter(([_, qty]) => Math.abs(qty) > 0.0001);
         
         if (holdings.length === 0) {
@@ -39,18 +36,15 @@ const Dashboard = {
     },
 
     renderChart(history) {
-        // 1. Aggregation: Get last entry per day
         const dailyData = {};
         history.forEach(entry => {
-            const dateKey = entry.date.toISOString().split('T')[0]; // YYYY-MM-DD
+            const dateKey = entry.date.toISOString().split('T')[0];
             dailyData[dateKey] = entry;
         });
 
         const labels = Object.keys(dailyData).sort();
         const values = labels.map(d => dailyData[d].portfolioValue);
         
-        // Calculate Return % for chart
-        // Return % = (Value - CumulativeDeposits) / CumulativeDeposits
         const returns = labels.map(d => {
             const entry = dailyData[d];
             if (entry.totalDeposits === 0) return 0;
@@ -150,13 +144,8 @@ const Dashboard = {
 
     renderTransactions(historyEvents) {
         const container = document.getElementById('transactions-grid-container');
-        
-        // Use the array's natural order.
-        // Since processing was done oldest-first (reversed from file), 
-        // we simply reverse the processed array to restore newest-first (file order).
         const sortedEvents = [...historyEvents].reverse();
         
-        // Prepare data
         const gridData = sortedEvents.map(event => {
             const dateStr = event.date.toISOString().slice(0, 10);
             if (event.type === 'Cashflow') {

@@ -1,4 +1,3 @@
-// Configuration
 const CONFIG = {
     files: {
         transactions: 'transactions.csv'

@@ -1,4 +1,3 @@
-// --- Utils ---
 const Utils = {
     parseDate(dateString) {
         const date = new Date(dateString);
@@ -21,7 +20,10 @@ const Utils = {
         errorEl.textContent = `Error: ${message}`;
         errorEl.style.display = 'block';
         console.error(message);
-        // Fail fast: stop further processing visually (logic stops via throw)
     }
 };
+
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = Utils;
+}
 

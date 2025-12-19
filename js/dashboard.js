@@ -44,6 +44,7 @@ const Dashboard = {
 
         const labels = Object.keys(dailyData).sort();
         const values = labels.map(d => dailyData[d].portfolioValue);
+        const cashBalances = labels.map(d => dailyData[d].cash);
         
         const returns = labels.map(d => {
             const entry = dailyData[d];
@@ -65,6 +66,16 @@ const Dashboard = {
                         yAxisID: 'y',
                         tension: 0.1,
                         fill: true
+                    },
+                    {
+                        label: 'Cash Balance (SEK)',
+                        data: cashBalances,
+                        borderColor: '#F18F01',
+                        backgroundColor: 'rgba(241, 143, 1, 0.1)',
+                        yAxisID: 'y',
+                        borderDash: [5, 5],
+                        tension: 0.1,
+                        fill: false
                     },
                     {
                         label: 'Return (%)',
@@ -93,7 +104,7 @@ const Dashboard = {
                                     label += ': ';
                                 }
                                 if (context.parsed.y !== null) {
-                                    if (context.datasetIndex === 0) {
+                                    if (context.datasetIndex === 0 || context.datasetIndex === 1) {
                                          label += new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK' }).format(context.parsed.y);
                                     } else {
                                          label += context.parsed.y.toFixed(2) + '%';

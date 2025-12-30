@@ -11,10 +11,12 @@ class PortfolioEngine {
     }
 
     process() {
-        const reversedTransactions = [...this.transactions].reverse();
+        // Process transactions in chronological order (oldest first) to build correct state
+        // The transactions array is already in reverse chronological order, so we reverse it
+        const chronologicalTransactions = [...this.transactions].reverse();
         let events = [];
 
-        reversedTransactions.forEach((row) => {
+        chronologicalTransactions.forEach((row) => {
             const action = row.Action;
             const isDeposit = action === 'Deposit';
             const isWithdrawal = action === 'Withdrawal';
@@ -49,59 +51,82 @@ class PortfolioEngine {
             }
         });
 
+        // Sort events by date to ensure chronological processing
+        events.sort((a, b) => a.date - b.date);
+        
         this.processedEvents = events;
 
+        // Group events by date and process each day's events together
+        // This ensures NAV is calculated after all transactions for a day are processed
+        const eventsByDate = {};
         events.forEach(event => {
-            const date = event.date;
+            const dateKey = event.date.toISOString().slice(0, 10);
+            if (!eventsByDate[dateKey]) {
+                eventsByDate[dateKey] = [];
+            }
+            eventsByDate[dateKey].push(event);
+        });
 
-            if (event.type === 'Cashflow') {
-                this.cashBalance += event.amount;
-                if (event.amount > 0) {
-                    this.totalDeposits += event.amount;
-                }
-            } else if (event.type === 'Trade') {
-                this.cashBalance += event.totalValue;
+        // Process events day by day in chronological order
+        const sortedDates = Object.keys(eventsByDate).sort();
+        sortedDates.forEach(dateKey => {
+            const dayEvents = eventsByDate[dateKey];
+            const date = Utils.parseDate(dateKey);
 
-                const stock = event.stock;
-                const qty = event.quantity;
-                
-                if (!this.currentPositions[stock]) this.currentPositions[stock] = 0;
-                if (!this.avgPrice[stock]) this.avgPrice[stock] = 0;
+            // Process all events for this day
+            dayEvents.forEach(event => {
+                if (event.type === 'Cashflow') {
+                    this.cashBalance += event.amount;
+                    if (event.amount > 0) {
+                        this.totalDeposits += event.amount;
+                    }
+                } else if (event.type === 'Trade') {
+                    this.cashBalance += event.totalValue;
 
-                if (qty > 0) {
-                    const priceValue = event.price * qty;
-                    const totalCost = Math.abs(event.totalValue);
-                    const fees = totalCost - priceValue;
+                    const stock = event.stock;
+                    const qty = event.quantity;
                     
-                    this.realizedPnL -= fees;
-                    
-                    const currentQty = this.currentPositions[stock];
-                    const currentPriceValue = currentQty * this.avgPrice[stock];
-                    this.avgPrice[stock] = (currentPriceValue + priceValue) / (currentQty + qty);
-                    
-                    this.currentPositions[stock] += qty;
-                    this.purchasePrices[stock] = event.price;
+                    if (!this.currentPositions[stock]) this.currentPositions[stock] = 0;
+                    if (!this.avgPrice[stock]) this.avgPrice[stock] = 0;
 
-                } else if (qty < 0) {
-                    const sellQty = Math.abs(qty);
-                    const proceeds = event.totalValue;
-                    const priceValue = event.price * sellQty;
-                    const sellFees = priceValue - proceeds;
-                    
-                    this.realizedPnL -= sellFees;
-                    
-                    const costBasis = sellQty * (this.avgPrice[stock] || 0);
-                    const pricePnL = proceeds - costBasis;
-                    
-                    event.realizedPnL = pricePnL;
-                    this.currentPositions[stock] += qty;
-                    
-                    if (Math.abs(this.currentPositions[stock]) < 0.0001) {
-                        this.currentPositions[stock] = 0;
+                    if (qty > 0) {
+                        const priceValue = event.price * qty;
+                        const totalCost = Math.abs(event.totalValue);
+                        const fees = totalCost - priceValue;
+                        
+                        this.realizedPnL -= fees;
+                        
+                        const currentQty = this.currentPositions[stock];
+                        const currentPriceValue = currentQty * this.avgPrice[stock];
+                        this.avgPrice[stock] = (currentPriceValue + priceValue) / (currentQty + qty);
+                        
+                        this.currentPositions[stock] += qty;
+                        this.purchasePrices[stock] = event.price;
+
+                    } else if (qty < 0) {
+                        const sellQty = Math.abs(qty);
+                        const proceeds = event.totalValue;
+                        const priceValue = event.price * sellQty;
+                        const sellFees = priceValue - proceeds;
+                        
+                        this.realizedPnL -= sellFees;
+                        
+                        const costBasis = sellQty * (this.avgPrice[stock] || 0);
+                        const pricePnL = proceeds - costBasis;
+                        
+                        event.realizedPnL = pricePnL;
+                        this.currentPositions[stock] += qty;
+                        
+                        if (Math.abs(this.currentPositions[stock]) < 0.0001) {
+                            // Remove position and avgPrice when position becomes 0 to avoid using stale values
+                            delete this.currentPositions[stock];
+                            delete this.avgPrice[stock];
+                        }
                     }
                 }
-            }
+            });
 
+            // Calculate NAV and portfolio value after processing all events for this day
             let nav = 0;
             for (const [stock, qty] of Object.entries(this.currentPositions)) {
                 if (qty !== 0 && this.avgPrice[stock]) {

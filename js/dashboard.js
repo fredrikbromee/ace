@@ -5,6 +5,8 @@ const Dashboard = {
         document.getElementById('total-return').textContent = Utils.formatPercent(stats.totalReturnPct);
         document.getElementById('cagr').textContent = Utils.formatPercent(stats.cagr);
         document.getElementById('cash-balance').textContent = Utils.formatCurrency(stats.cash);
+        document.getElementById('txn-costs-total').textContent = Utils.formatCurrency(stats.totalTransactionCosts);
+        document.getElementById('net-profit').textContent = Utils.formatCurrency(stats.netProfit);
         
         document.getElementById('dashboard').style.display = 'grid';
     },

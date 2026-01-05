@@ -8,6 +8,7 @@ class PortfolioEngine {
         this.realizedPnL = 0;
         this.cashBalance = 0;
         this.totalDeposits = 0;
+        this.totalTransactionCosts = 0;
     }
 
     process() {
@@ -94,6 +95,7 @@ class PortfolioEngine {
                         const totalCost = Math.abs(event.totalValue);
                         const fees = totalCost - priceValue;
                         
+                        this.totalTransactionCosts += fees;
                         this.realizedPnL -= fees;
                         
                         const currentQty = this.currentPositions[stock];
@@ -109,6 +111,7 @@ class PortfolioEngine {
                         const priceValue = event.price * sellQty;
                         const sellFees = priceValue - proceeds;
                         
+                        this.totalTransactionCosts += sellFees;
                         this.realizedPnL -= sellFees;
                         
                         const costBasis = sellQty * (this.avgPrice[stock] || 0);
@@ -172,7 +175,9 @@ class PortfolioEngine {
             cagr: cagr,
             holdings: this.currentPositions,
             purchasePrices: this.purchasePrices,
-            nav: last.nav
+            nav: last.nav,
+            totalTransactionCosts: this.totalTransactionCosts,
+            netProfit: last.pnl
         };
     }
 

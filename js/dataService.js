@@ -2,11 +2,50 @@ class DataService {
     static async loadData() {
         try {
             const transactions = await this.fetchAndParse(CONFIG.files.transactions, CONFIG.requiredColumns.transactions);
-            return { transactions };
+            const benchmarkData = await this.loadBenchmarkData();
+            return { transactions, benchmarkData };
         } catch (error) {
             Utils.showError(error.message);
             throw error; // Stop execution
         }
+    }
+
+    static async loadBenchmarkData() {
+        return new Promise((resolve, reject) => {
+            Papa.parse(CONFIG.files.benchmark, {
+                download: true,
+                header: true,
+                skipEmptyLines: true,
+                dynamicTyping: true,
+                complete: (results) => {
+                    if (results.errors.length > 0) {
+                        reject(new Error(`Parsing error in benchmark file: ${results.errors[0].message}`));
+                        return;
+                    }
+
+                    const data = results.data;
+                    if (!data || data.length === 0) {
+                        reject(new Error('Benchmark file is empty'));
+                        return;
+                    }
+
+                    // Create lookup map: { "2025-11-21": 2699.35, ... }
+                    const priceLookup = {};
+                    data.forEach(row => {
+                        if (row.Date && row.Close) {
+                            // Extract just the date part (YYYY-MM-DD) from datetime string
+                            const dateStr = row.Date.toString().slice(0, 10);
+                            priceLookup[dateStr] = row.Close;
+                        }
+                    });
+
+                    resolve(priceLookup);
+                },
+                error: (err) => {
+                    reject(new Error(`Failed to load benchmark data: ${err.message}`));
+                }
+            });
+        });
     }
 
     static fetchAndParse(filename, requiredCols) {

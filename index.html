@@ -25,31 +25,51 @@
                 <div class="stat-label">Portfolio Value</div>
             </div>
             <div class="card stat-box">
-                <div class="stat-value" id="total-return">Loading...</div>
-                <div class="stat-label">Total Return</div>
+                <div class="stat-value" id="annualized-twr">Loading...</div>
+                <div class="stat-label">Annualized TWR</div>
             </div>
             <div class="card stat-box">
                 <div class="stat-value" id="cagr">Loading...</div>
                 <div class="stat-label">CAGR</div>
             </div>
             <div class="card stat-box">
-                <div class="stat-value" id="cash-balance">Loading...</div>
-                <div class="stat-label">Cash Balance</div>
+                <div class="stat-value" id="benchmark-twr">Loading...</div>
+                <div class="stat-label">OMX30 TWR</div>
             </div>
             <div class="card stat-box">
-                <div class="stat-value" id="txn-costs-total">Loading...</div>
-                <div class="stat-label">Transaction Costs Total</div>
+                <div class="stat-value" id="benchmark-cagr">Loading...</div>
+                <div class="stat-label">OMX30 CAGR</div>
+            </div>
+            <div class="card stat-box">
+                <div class="stat-value" id="alpha">Loading...</div>
+                <div class="stat-label">Alpha</div>
+            </div>
+            <div class="card stat-box">
+                <div class="stat-value" id="cash-balance">Loading...</div>
+                <div class="stat-label">Cash Balance</div>
             </div>
             <div class="card stat-box">
                 <div class="stat-value" id="net-profit">Loading...</div>
                 <div class="stat-label">Net Profit</div>
             </div>
+            <div class="card stat-box">
+                <div class="stat-value" id="txn-costs-total">Loading...</div>
+                <div class="stat-label">Transaction Costs</div>
+            </div>
 
-            <!-- Chart -->
+            <!-- Chart 1: Portfolio Value -->
             <div class="card full-width">
-                <h2>Value Development</h2>
+                <h2>Portfolio Value</h2>
                 <div id="chart-container">
-                    <canvas id="portfolioChart"></canvas>
+                    <canvas id="portfolioValueChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Chart 2: TWR Comparison -->
+            <div class="card full-width">
+                <h2>Time-Weighted Return (TWR) Comparison</h2>
+                <div id="twr-chart-container">
+                    <canvas id="twrChart"></canvas>
                 </div>
             </div>
 
@@ -85,8 +105,8 @@
     <script src="js/utils.js"></script>
     <script src="js/dataService.js"></script>
     <script src="js/portfolioEngine.js"></script>
+    <script src="js/benchmarkEngine.js"></script>
     <script src="js/dashboard.js"></script>
     <script src="js/main.js"></script>
 </body>
 </html>
-

@@ -1,9 +1,34 @@
 const assert = require('assert');
 const path = require('path');
+const fs = require('fs');
 
 const Utils = require(path.join(__dirname, '..', 'js/utils.js'));
 global.Utils = Utils;
 const PortfolioEngine = require(path.join(__dirname, '..', 'js/portfolioEngine.js'));
+
+// Helper to parse CSV
+function parseCSV(csvContent) {
+    const lines = csvContent.trim().split('\n');
+    const headers = lines[0].split(',');
+    const rows = [];
+    for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(',');
+        const row = {};
+        headers.forEach((header, idx) => {
+            let value = values[idx] || '';
+            // Remove quotes if present
+            value = value.replace(/^"|"$/g, '');
+            // Try to parse as number
+            if (header === 'Quantity' || header === 'Price' || header === 'Total_Value') {
+                row[header] = value === '' ? null : parseFloat(value);
+            } else {
+                row[header] = value;
+            }
+        });
+        rows.push(row);
+    }
+    return rows;
+}
 
 const tests = [
     {
@@ -255,6 +280,31 @@ const tests = [
             assert.strictEqual(engine.avgPrice['ABC'], 110, 'Avg price should be 110');
             // But NAV uses lastPrice (120 from second buy)
             assert.strictEqual(engine.lastPrice['ABC'], 120, 'Last price should be 120');
+        }
+    },
+    {
+        name: 'CAGR bug: Multiple capital flows with loss should not return 0%',
+        run: () => {
+            // Minimal case that reproduces the bug: Multiple capital injections with portfolio value < total capital
+            // This tests the XIRR calculation with multiple cash flows and negative return
+            const transactions = [
+                { Date: '2024-01-01', Action: 'Köp', Stock: 'ABC', Quantity: 10, Price: 100, Total_Value: -1000 },
+                { Date: '2024-01-02', Action: 'Köp', Stock: 'XYZ', Quantity: 5, Price: 200, Total_Value: -1000 }
+            ].reverse();
+
+            const engine = new PortfolioEngine(transactions);
+            engine.process();
+            
+            // Simulate loss: portfolio value less than capital invested
+            const last = engine.history[engine.history.length - 1];
+            last.portfolioValue = 1500; // Less than 2000 capital invested (25% loss)
+            last.date = new Date('2024-01-10'); // 9 days later
+            
+            const stats = engine.getStats();
+
+            // CAGR should calculate negative return, not 0
+            assert.ok(stats.cagr !== 0, `CAGR should not be 0 when portfolio value (${stats.portfolioValue}) < capital (${stats.totalCapitalIn}), got ${stats.cagr}%`);
+            assert.ok(stats.cagr < 0, `CAGR should be negative for a loss, got ${stats.cagr}%`);
         }
     }
 ];

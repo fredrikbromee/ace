@@ -252,8 +252,23 @@ class PortfolioEngine {
             return npv;
         };
 
-        let rate = 0.1;
-        for (let i = 0; i < 50; i++) {
+        // Try different initial rates for better convergence
+        // Start with a guess based on simple return
+        const totalOutflows = flows.slice(0, -1).reduce((sum, f) => sum + Math.abs(f), 0);
+        const totalInflow = flows[flows.length - 1];
+        const simpleReturn = (totalInflow - totalOutflows) / totalOutflows;
+        const daysDiff = (endDate - minDate) / (1000 * 60 * 60 * 24);
+        const years = daysDiff / 365.25;
+        
+        // Initial guess: annualized simple return
+        let rate = years > 0 ? Math.pow(1 + simpleReturn, 1 / years) - 1 : 0.1;
+        
+        // Clamp initial rate to reasonable range
+        if (rate > 10 || rate < -0.9) {
+            rate = simpleReturn > 0 ? 0.1 : -0.5; // Start positive for gains, negative for losses
+        }
+
+        for (let i = 0; i < 100; i++) {
             const y = xirrFunc(rate);
             if (Math.abs(y) < 0.01) break;
 
@@ -261,11 +276,20 @@ class PortfolioEngine {
             const y2 = xirrFunc(rate + delta);
             const dy = (y2 - y) / delta;
             
-            if (dy === 0) break;
-            rate = rate - y / dy;
+            if (Math.abs(dy) < 1e-10) break; // Avoid division by very small numbers
+            
+            const newRate = rate - y / dy;
+            
+            // Prevent rate from going to extreme values
+            if (newRate < -0.99 || newRate > 100) {
+                break;
+            }
+            
+            rate = newRate;
         }
         
-        if (isNaN(rate) || Math.abs(rate) > 100) return 0;
+        // Allow negative rates (losses) but clamp extreme values
+        if (isNaN(rate) || rate < -0.99 || rate > 100) return 0;
 
         return rate * 100;
     }

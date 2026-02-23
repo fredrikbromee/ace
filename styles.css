@@ -95,6 +95,32 @@ h1 {
     padding: 0 4px;
 }
 
+.upload-section {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+}
+
+.upload-label {
+    font-size: 0.85em;
+    color: #666;
+}
+
+#csv-upload {
+    font-size: 0.85em;
+}
+
+.upload-status {
+    font-size: 0.85em;
+    color: #2e7d32;
+}
+
+.upload-status.error {
+    color: var(--error-color);
+}
+
 .error-message {
     background-color: #ffebee;
     color: var(--error-color);

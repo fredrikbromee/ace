@@ -48,6 +48,71 @@ class DataService {
         });
     }
 
+    static parseUploadedCSV(fileContent) {
+        return new Promise((resolve, reject) => {
+            Papa.parse(fileContent, {
+                header: true,
+                skipEmptyLines: true,
+                delimiter: ';',
+                complete: (results) => {
+                    if (results.errors.length > 0) {
+                        reject(new Error(`Parsing error: ${results.errors[0].message}`));
+                        return;
+                    }
+
+                    const data = results.data;
+                    if (!data || data.length === 0) {
+                        reject(new Error('Uploaded file is empty'));
+                        return;
+                    }
+
+                    // Check for expected Swedish columns
+                    const headers = results.meta.fields;
+                    const required = ['Datum', 'Konto', 'Typ av transaktion', 'Värdepapper/beskrivning', 'Antal', 'Kurs', 'Belopp'];
+                    const missing = required.filter(col => !headers.includes(col));
+                    if (missing.length > 0) {
+                        reject(new Error(`Missing columns in uploaded file: ${missing.join(', ')}`));
+                        return;
+                    }
+
+                    // Filter only Köp and Sälj, then transform
+                    const transformed = data
+                        .filter(row => row['Typ av transaktion'] === 'Köp' || row['Typ av transaktion'] === 'Sälj')
+                        .map(row => {
+                            const parseSwedishNum = (val) => {
+                                if (val === null || val === undefined || val === '') return 0;
+                                return parseFloat(String(val).replace(',', '.'));
+                            };
+                            let price = parseSwedishNum(row['Kurs']);
+                            const exchangeRate = parseSwedishNum(row['Valutakurs']);
+                            if (exchangeRate > 0) {
+                                price = price * exchangeRate;
+                            }
+                            return {
+                                Date: row['Datum'],
+                                Account: String(row['Konto']).replace(/ kreditkonto$/, ''),
+                                Action: row['Typ av transaktion'],
+                                Stock: row['Värdepapper/beskrivning'],
+                                Quantity: parseSwedishNum(row['Antal']),
+                                Price: price,
+                                Total_Value: parseSwedishNum(row['Belopp'])
+                            };
+                        });
+
+                    if (transformed.length === 0) {
+                        reject(new Error('No buy/sell transactions found in uploaded file'));
+                        return;
+                    }
+
+                    resolve(transformed);
+                },
+                error: (err) => {
+                    reject(new Error(`Failed to parse uploaded file: ${err.message}`));
+                }
+            });
+        });
+    }
+
     static fetchAndParse(filename, requiredCols) {
         return new Promise((resolve, reject) => {
             Papa.parse(filename, {

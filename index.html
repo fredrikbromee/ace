@@ -13,7 +13,11 @@
     <div class="container">
         <header>
             <h1>Portfolio Analysis</h1>
-            <p>Data loaded from <code>transactions.csv</code></p>
+            <div class="upload-section">
+                <label for="csv-upload" class="upload-label">Upload transactions CSV</label>
+                <input type="file" id="csv-upload" accept=".csv" />
+                <span id="upload-status" class="upload-status"></span>
+            </div>
         </header>
 
         <div id="error-display" class="error-message"></div>

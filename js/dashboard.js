@@ -1,5 +1,23 @@
 const Dashboard = {
     transactionsGrid: null,
+    portfolioValueChart: null,
+    twrChart: null,
+
+    cleanup() {
+        if (this.portfolioValueChart) {
+            this.portfolioValueChart.destroy();
+            this.portfolioValueChart = null;
+        }
+        if (this.twrChart) {
+            this.twrChart.destroy();
+            this.twrChart = null;
+        }
+        if (this.transactionsGrid) {
+            this.transactionsGrid.destroy();
+            this.transactionsGrid = null;
+        }
+    },
+
     renderStats(stats, benchmarkStats) {
         document.getElementById('total-value').textContent = Utils.formatCurrency(stats.portfolioValue);
         document.getElementById('annualized-twr').textContent = Utils.formatPercent(stats.annualizedTWR);
@@ -97,7 +115,7 @@ const Dashboard = {
         });
 
         const ctx = document.getElementById('portfolioValueChart').getContext('2d');
-        new Chart(ctx, {
+        this.portfolioValueChart = new Chart(ctx, {
             type: 'line',
             data: {
                 labels: labels,
@@ -238,7 +256,7 @@ const Dashboard = {
         });
 
         const ctx = document.getElementById('twrChart').getContext('2d');
-        new Chart(ctx, {
+        this.twrChart = new Chart(ctx, {
             type: 'line',
             data: {
                 labels: labels,

@@ -1,11 +1,12 @@
-async function runDashboard(transactions, benchmarkData) {
+async function runDashboard(transactions, benchmarkData, stockPrices) {
     Dashboard.cleanup();
 
     const errorDisplay = document.getElementById('error-display');
     errorDisplay.style.display = 'none';
     errorDisplay.textContent = '';
 
-    const engine = new PortfolioEngine(transactions);
+    const tradingDays = Object.keys(benchmarkData).sort();
+    const engine = new PortfolioEngine(transactions, stockPrices, tradingDays);
     const portfolioHistory = engine.process();
 
     const portfolioTWR = engine.calculateTWR();
@@ -39,12 +40,14 @@ async function runDashboard(transactions, benchmarkData) {
 
 (async function init() {
     let benchmarkData;
+    let stockPrices;
 
     try {
         const data = await DataService.loadData();
         console.log('Data loaded successfully');
         benchmarkData = data.benchmarkData;
-        await runDashboard(data.transactions, benchmarkData);
+        stockPrices = data.stockPrices;
+        await runDashboard(data.transactions, benchmarkData, stockPrices);
     } catch (e) {
         console.error(e);
         if (document.getElementById('error-display').style.display !== 'block') {
@@ -65,12 +68,16 @@ async function runDashboard(transactions, benchmarkData) {
             const text = await file.text();
             const transactions = await DataService.parseUploadedCSV(text);
 
-            // Load benchmark data if not already loaded
+            // Load benchmark and stock data if not already loaded
             if (!benchmarkData) {
                 benchmarkData = await DataService.loadBenchmarkData();
             }
+            if (!stockPrices) {
+                const stockNames = [...new Set(transactions.filter(t => t.Stock).map(t => t.Stock))];
+                stockPrices = await DataService.loadStockPrices(stockNames);
+            }
 
-            await runDashboard(transactions, benchmarkData);
+            await runDashboard(transactions, benchmarkData, stockPrices);
             statusEl.textContent = `Loaded ${transactions.length} transactions`;
         } catch (e) {
             console.error(e);

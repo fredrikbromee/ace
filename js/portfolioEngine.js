@@ -1,6 +1,8 @@
 class PortfolioEngine {
-    constructor(transactions) {
+    constructor(transactions, stockPrices, tradingDays) {
         this.transactions = transactions;
+        this.stockPrices = stockPrices || {};
+        this.tradingDays = tradingDays || [];
         this.history = [];
         this.currentPositions = {};
         this.purchasePrices = {};
@@ -16,20 +18,27 @@ class PortfolioEngine {
     }
 
     process() {
-        // Process transactions in chronological order (oldest first) to build correct state
-        // The transactions array is already in reverse chronological order, so we reverse it
+        // Phase 1: Process all transactions and build state snapshots by date
+        this.processTransactions();
+
+        // Phase 2: Generate daily history using market prices (or fall back to transaction-only)
+        const hasMarketData = this.tradingDays.length > 0 && Object.keys(this.stockPrices).length > 0;
+        if (hasMarketData) {
+            this.generateDailyHistory();
+        } else {
+            this.generateTransactionDayHistory();
+        }
+
+        return this.history;
+    }
+
+    processTransactions() {
         const chronologicalTransactions = [...this.transactions].reverse();
         let events = [];
 
         chronologicalTransactions.forEach((row) => {
             const action = row.Action;
-            const isDeposit = action === 'Deposit';
-            const isWithdrawal = action === 'Withdrawal';
-            
-            // Skip deposits and withdrawals - we infer cash from trades
-            if (isDeposit || isWithdrawal) {
-                return;
-            }
+            if (action === 'Deposit' || action === 'Withdrawal') return;
 
             events.push({
                 date: Utils.parseDate(row.Date),
@@ -43,23 +52,21 @@ class PortfolioEngine {
             });
         });
 
-        // Sort events by date to ensure chronological processing
         events.sort((a, b) => a.date - b.date);
-        
         this.processedEvents = events;
 
-        // Group events by date and process each day's events together
-        // This ensures NAV is calculated after all transactions for a day are processed
+        // Group events by date
         const eventsByDate = {};
         events.forEach(event => {
             const dateKey = event.date.toISOString().slice(0, 10);
-            if (!eventsByDate[dateKey]) {
-                eventsByDate[dateKey] = [];
-            }
+            if (!eventsByDate[dateKey]) eventsByDate[dateKey] = [];
             eventsByDate[dateKey].push(event);
         });
 
-        // Process events day by day in chronological order
+        this.eventsByDate = eventsByDate;
+        this.stateByDate = {};
+
+        // Process events day by day
         const sortedDates = Object.keys(eventsByDate).sort();
         sortedDates.forEach(dateKey => {
             const dayEvents = eventsByDate[dateKey];
@@ -74,108 +81,207 @@ class PortfolioEngine {
             }
             const portfolioValueBeforeDay = this.cashBalance + navBefore;
 
-            // Process all events for this day
             dayEvents.forEach(event => {
                 if (event.type === 'Trade') {
-                    const stock = event.stock;
-                    const qty = event.quantity;
-                    
-                    // Update last known price for this stock
-                    this.lastPrice[stock] = event.price;
-                    
-                    if (!this.currentPositions[stock]) this.currentPositions[stock] = 0;
-                    if (!this.avgPrice[stock]) this.avgPrice[stock] = 0;
-
-                    if (qty > 0) {
-                        // BUY: Infer capital if needed
-                        const needed = Math.abs(event.totalValue);
-                        
-                        // Track buy event for benchmark (all buys)
-                        this.buyEvents.push({
-                            date: event.date,
-                            amount: needed
-                        });
-                        
-                        if (this.cashBalance < needed) {
-                            const newCapital = needed - this.cashBalance;
-                            
-                            this.totalCapitalIn += newCapital;
-                            // Track capital injection for XIRR and TWR
-                            this.capitalFlows.push({
-                                date: event.date,
-                                amount: -newCapital, // negative = cash out from investor
-                                portfolioValueBefore: portfolioValueBeforeDay // For TWR calculation
-                            });
-                            this.cashBalance = 0;
-                        } else {
-                            this.cashBalance -= needed;
-                        }
-
-                        const priceValue = event.price * qty;
-                        const totalCost = Math.abs(event.totalValue);
-                        const fees = totalCost - priceValue;
-                        
-                        this.totalTransactionCosts += fees;
-                        this.realizedPnL -= fees;
-                        
-                        const currentQty = this.currentPositions[stock];
-                        const currentPriceValue = currentQty * this.avgPrice[stock];
-                        this.avgPrice[stock] = (currentPriceValue + priceValue) / (currentQty + qty);
-                        
-                        this.currentPositions[stock] += qty;
-                        this.purchasePrices[stock] = event.price;
-
-                    } else if (qty < 0) {
-                        // SELL: Add proceeds to cash
-                        const proceeds = event.totalValue;
-                        this.cashBalance += proceeds;
-
-                        const sellQty = Math.abs(qty);
-                        const priceValue = event.price * sellQty;
-                        const sellFees = priceValue - proceeds;
-                        
-                        this.totalTransactionCosts += sellFees;
-                        this.realizedPnL -= sellFees;
-                        
-                        const costBasis = sellQty * (this.avgPrice[stock] || 0);
-                        const pricePnL = proceeds - costBasis;
-                        
-                        event.realizedPnL = pricePnL;
-                        this.realizedPnL += pricePnL;
-                        this.currentPositions[stock] += qty;
-                        
-                        if (Math.abs(this.currentPositions[stock]) < 0.0001) {
-                            delete this.currentPositions[stock];
-                            delete this.avgPrice[stock];
-                        }
-                    }
+                    this.processTradeEvent(event, date, portfolioValueBeforeDay);
                 }
             });
 
-            // Calculate NAV using last traded price (more realistic than cost basis)
+            // Save state snapshot after processing this day's transactions
+            this.stateByDate[dateKey] = {
+                cashBalance: this.cashBalance,
+                positions: { ...this.currentPositions },
+                totalCapitalIn: this.totalCapitalIn,
+                realizedPnL: this.realizedPnL,
+                lastPrice: { ...this.lastPrice }
+            };
+        });
+    }
+
+    processTradeEvent(event, date, portfolioValueBeforeDay) {
+        const stock = event.stock;
+        const qty = event.quantity;
+
+        this.lastPrice[stock] = event.price;
+
+        if (!this.currentPositions[stock]) this.currentPositions[stock] = 0;
+        if (!this.avgPrice[stock]) this.avgPrice[stock] = 0;
+
+        if (qty > 0) {
+            const needed = Math.abs(event.totalValue);
+
+            this.buyEvents.push({ date: event.date, amount: needed });
+
+            if (this.cashBalance < needed) {
+                const newCapital = needed - this.cashBalance;
+                this.totalCapitalIn += newCapital;
+                this.capitalFlows.push({
+                    date: event.date,
+                    amount: -newCapital,
+                    portfolioValueBefore: portfolioValueBeforeDay
+                });
+                this.cashBalance = 0;
+            } else {
+                this.cashBalance -= needed;
+            }
+
+            const priceValue = event.price * qty;
+            const totalCost = Math.abs(event.totalValue);
+            const fees = totalCost - priceValue;
+
+            this.totalTransactionCosts += fees;
+            this.realizedPnL -= fees;
+
+            const currentQty = this.currentPositions[stock];
+            const currentPriceValue = currentQty * this.avgPrice[stock];
+            this.avgPrice[stock] = (currentPriceValue + priceValue) / (currentQty + qty);
+
+            this.currentPositions[stock] += qty;
+            this.purchasePrices[stock] = event.price;
+
+        } else if (qty < 0) {
+            const proceeds = event.totalValue;
+            this.cashBalance += proceeds;
+
+            const sellQty = Math.abs(qty);
+            const priceValue = event.price * sellQty;
+            const sellFees = priceValue - proceeds;
+
+            this.totalTransactionCosts += sellFees;
+            this.realizedPnL -= sellFees;
+
+            const costBasis = sellQty * (this.avgPrice[stock] || 0);
+            const pricePnL = proceeds - costBasis;
+
+            event.realizedPnL = pricePnL;
+            this.realizedPnL += pricePnL;
+            this.currentPositions[stock] += qty;
+
+            if (Math.abs(this.currentPositions[stock]) < 0.0001) {
+                delete this.currentPositions[stock];
+                delete this.avgPrice[stock];
+            }
+        }
+    }
+
+    // Fallback: original behavior when no market data is available
+    generateTransactionDayHistory() {
+        const sortedDates = Object.keys(this.stateByDate).sort();
+        sortedDates.forEach(dateKey => {
+            const state = this.stateByDate[dateKey];
+            const date = Utils.parseDate(dateKey);
+
             let nav = 0;
-            for (const [stock, qty] of Object.entries(this.currentPositions)) {
-                if (qty !== 0 && this.lastPrice[stock]) {
-                    nav += qty * this.lastPrice[stock];
+            for (const [stock, qty] of Object.entries(state.positions)) {
+                if (qty !== 0 && state.lastPrice[stock]) {
+                    nav += qty * state.lastPrice[stock];
                 }
             }
 
-            const portfolioValue = this.cashBalance + nav;
-            const pnl = portfolioValue - this.totalCapitalIn;
+            const portfolioValue = state.cashBalance + nav;
+            const pnl = portfolioValue - state.totalCapitalIn;
 
             this.history.push({
                 date: date,
-                cash: this.cashBalance,
+                cash: state.cashBalance,
                 nav: nav,
                 portfolioValue: portfolioValue,
-                totalCapitalIn: this.totalCapitalIn,
+                totalCapitalIn: state.totalCapitalIn,
                 pnl: pnl,
-                realizedPnL: this.realizedPnL,
-                positions: { ...this.currentPositions }
+                realizedPnL: state.realizedPnL,
+                positions: { ...state.positions }
             });
         });
+    }
 
-        return this.history;
+    // Day-by-day history using market close prices
+    generateDailyHistory() {
+        const transactionDates = Object.keys(this.stateByDate).sort();
+        if (transactionDates.length === 0) return;
+
+        const firstTxDate = transactionDates[0];
+        const lastTxDate = transactionDates[transactionDates.length - 1];
+
+        // Use trading days in the range from first transaction to last available
+        const relevantDays = this.tradingDays.filter(d => d >= firstTxDate);
+
+        let currentState = null;
+        const marketPrices = {}; // carry-forward market prices per stock
+        const tradePrices = {}; // carry-forward trade prices per stock (point-in-time)
+
+        // Build capital flow lookup for updating portfolioValueBefore
+        const capitalFlowsByDate = {};
+        this.capitalFlows.forEach(cf => {
+            const dateStr = cf.date.toISOString().slice(0, 10);
+            if (!capitalFlowsByDate[dateStr]) capitalFlowsByDate[dateStr] = [];
+            capitalFlowsByDate[dateStr].push(cf);
+        });
+
+        let previousPortfolioValue = null;
+
+        relevantDays.forEach(dateKey => {
+            // Apply transaction state snapshot if this day had transactions
+            if (this.stateByDate[dateKey]) {
+                currentState = this.stateByDate[dateKey];
+                // Update point-in-time trade prices
+                Object.assign(tradePrices, currentState.lastPrice);
+            }
+
+            if (!currentState) return; // before first transaction
+
+            // Update portfolioValueBefore for capital flows on this day
+            // using the previous day's market-based portfolio value
+            if (capitalFlowsByDate[dateKey] && previousPortfolioValue !== null) {
+                capitalFlowsByDate[dateKey].forEach(cf => {
+                    cf.portfolioValueBefore = previousPortfolioValue;
+                });
+            }
+
+            // Look up market close prices for each held stock
+            for (const stock of Object.keys(currentState.positions)) {
+                if (currentState.positions[stock] === 0) continue;
+
+                if (this.stockPrices[stock] && this.stockPrices[stock][dateKey] != null) {
+                    marketPrices[stock] = this.stockPrices[stock][dateKey];
+                }
+                // If no market price for this day, carry forward last known
+                // If never seen, fall back to point-in-time trade price
+                if (marketPrices[stock] == null && tradePrices[stock]) {
+                    marketPrices[stock] = tradePrices[stock];
+                }
+            }
+
+            // Calculate NAV using market close prices
+            let nav = 0;
+            for (const [stock, qty] of Object.entries(currentState.positions)) {
+                if (qty !== 0 && marketPrices[stock] != null) {
+                    nav += qty * marketPrices[stock];
+                }
+            }
+
+            const portfolioValue = currentState.cashBalance + nav;
+            const pnl = portfolioValue - currentState.totalCapitalIn;
+
+            this.history.push({
+                date: Utils.parseDate(dateKey),
+                cash: currentState.cashBalance,
+                nav: nav,
+                portfolioValue: portfolioValue,
+                totalCapitalIn: currentState.totalCapitalIn,
+                pnl: pnl,
+                realizedPnL: currentState.realizedPnL,
+                positions: { ...currentState.positions }
+            });
+
+            previousPortfolioValue = portfolioValue;
+        });
+
+        // Update lastPrice to use latest market prices for getStats()
+        for (const [stock, price] of Object.entries(marketPrices)) {
+            if (price != null) {
+                this.lastPrice[stock] = price;
+            }
+        }
     }
 
     getStats() {

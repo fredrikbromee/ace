@@ -283,6 +283,165 @@ const tests = [
         }
     },
     {
+        name: 'Day-by-day NAV uses market close prices',
+        run: () => {
+            const transactions = [
+                { Date: '2024-01-02', Action: 'Köp', Stock: 'ABC', Quantity: 10, Price: 100, Total_Value: -1000 }
+            ].reverse();
+
+            const stockPrices = {
+                'ABC': {
+                    '2024-01-02': 100,
+                    '2024-01-03': 110,
+                    '2024-01-04': 105,
+                    '2024-01-05': 115
+                }
+            };
+            const tradingDays = ['2024-01-02', '2024-01-03', '2024-01-04', '2024-01-05'];
+
+            const engine = new PortfolioEngine(transactions, stockPrices, tradingDays);
+            engine.process();
+
+            assert.strictEqual(engine.history.length, 4, 'Should have 4 daily history entries');
+            assert.strictEqual(engine.history[0].nav, 1000, 'Day 1 NAV = 10 * 100');
+            assert.strictEqual(engine.history[1].nav, 1100, 'Day 2 NAV = 10 * 110');
+            assert.strictEqual(engine.history[2].nav, 1050, 'Day 3 NAV = 10 * 105');
+            assert.strictEqual(engine.history[3].nav, 1150, 'Day 4 NAV = 10 * 115');
+        }
+    },
+    {
+        name: 'History entries generated for non-transaction days',
+        run: () => {
+            const transactions = [
+                { Date: '2024-01-02', Action: 'Köp', Stock: 'ABC', Quantity: 10, Price: 100, Total_Value: -1000 }
+            ].reverse();
+
+            const stockPrices = {
+                'ABC': { '2024-01-02': 100, '2024-01-03': 105, '2024-01-04': 110, '2024-01-05': 108, '2024-01-08': 112 }
+            };
+            const tradingDays = ['2024-01-02', '2024-01-03', '2024-01-04', '2024-01-05', '2024-01-08'];
+
+            const engine = new PortfolioEngine(transactions, stockPrices, tradingDays);
+            engine.process();
+
+            assert.strictEqual(engine.history.length, 5, 'Should have 5 history entries (1 tx day + 4 non-tx days)');
+        }
+    },
+    {
+        name: 'Missing stock price carries forward last known',
+        run: () => {
+            const transactions = [
+                { Date: '2024-01-02', Action: 'Köp', Stock: 'ABC', Quantity: 10, Price: 100, Total_Value: -1000 }
+            ].reverse();
+
+            // Day 3 missing from stockPrices
+            const stockPrices = {
+                'ABC': { '2024-01-02': 100, '2024-01-04': 120 }
+            };
+            const tradingDays = ['2024-01-02', '2024-01-03', '2024-01-04'];
+
+            const engine = new PortfolioEngine(transactions, stockPrices, tradingDays);
+            engine.process();
+
+            assert.strictEqual(engine.history[1].nav, 1000, 'Day 2 should carry forward price 100 from day 1');
+            assert.strictEqual(engine.history[2].nav, 1200, 'Day 3 should use price 120');
+        }
+    },
+    {
+        name: 'Falls back to trade-only behavior without stockPrices',
+        run: () => {
+            const transactions = [
+                { Date: '2024-01-01', Action: 'Köp', Stock: 'ABC', Quantity: 10, Price: 100, Total_Value: -1000 },
+                { Date: '2024-01-02', Action: 'Sälj', Stock: 'ABC', Quantity: -5, Price: 110, Total_Value: 550 }
+            ].reverse();
+
+            const engine = new PortfolioEngine(transactions);
+            engine.process();
+            const stats = engine.getStats();
+
+            assert.strictEqual(engine.history.length, 2, 'Should have 2 entries (transaction days only)');
+            assert.strictEqual(stats.nav, 550, 'NAV = 5 * 110');
+            assert.strictEqual(stats.portfolioValue, 1100, 'Portfolio = 550 cash + 550 NAV');
+        }
+    },
+    {
+        name: 'NAV with market prices differs from trade price',
+        run: () => {
+            const transactions = [
+                { Date: '2024-01-02', Action: 'Köp', Stock: 'ABC', Quantity: 10, Price: 100, Total_Value: -1000 }
+            ].reverse();
+
+            const stockPrices = {
+                'ABC': { '2024-01-02': 100, '2024-01-03': 130 }
+            };
+            const tradingDays = ['2024-01-02', '2024-01-03'];
+
+            const engine = new PortfolioEngine(transactions, stockPrices, tradingDays);
+            engine.process();
+            const stats = engine.getStats();
+
+            assert.strictEqual(stats.nav, 1300, 'NAV should use market close (130), not trade price (100)');
+            assert.strictEqual(stats.portfolioValue, 1300, 'Portfolio = 0 cash + 1300 NAV');
+        }
+    },
+    {
+        name: 'Fallback price uses point-in-time trade price, not final trade price',
+        run: () => {
+            // Bug: when a stock has no market data, generateDailyHistory used this.lastPrice
+            // which is the FINAL trade price across ALL transactions. This caused NAV to be
+            // wildly wrong on early days when the stock was later traded at very different prices.
+            //
+            // Scenario: Buy ABC at 100, sell at 200 later. On the buy day, NAV should use 100
+            // (the only known price at that time), not 200 (the final trade price).
+            const transactions = [
+                { Date: '2024-01-02', Action: 'Köp', Stock: 'ABC', Quantity: 10, Price: 100, Total_Value: -1000 },
+                { Date: '2024-01-05', Action: 'Sälj', Stock: 'ABC', Quantity: -10, Price: 200, Total_Value: 2000 }
+            ].reverse();
+
+            // ABC has no market data — only DEF does (to trigger generateDailyHistory)
+            const stockPrices = { 'DEF': { '2024-01-02': 50 } };
+            const tradingDays = ['2024-01-02', '2024-01-03', '2024-01-04', '2024-01-05'];
+
+            const engine = new PortfolioEngine(transactions, stockPrices, tradingDays);
+            engine.process();
+
+            // Day 1 (2024-01-02): bought at 100. NAV should be 10 * 100 = 1000, not 10 * 200
+            assert.strictEqual(engine.history[0].nav, 1000,
+                'NAV on buy day should use buy price (100), not final trade price (200)');
+
+            // Days 2-3 (2024-01-03, 2024-01-04): carry forward price 100
+            assert.strictEqual(engine.history[1].nav, 1000,
+                'NAV should carry forward the buy price');
+
+            // Day 4 (2024-01-05): all sold, NAV = 0, cash = 2000
+            assert.strictEqual(engine.history[3].nav, 0, 'NAV should be 0 after selling all');
+            assert.strictEqual(engine.history[3].cash, 2000, 'Cash should be sale proceeds');
+        }
+    },
+    {
+        name: 'TWR not distorted by fallback price on sell day',
+        run: () => {
+            // When stock has no market data and is sold, TWR should not show a massive
+            // fake drop caused by using the wrong fallback price before the sell.
+            const transactions = [
+                { Date: '2024-01-02', Action: 'Köp', Stock: 'ABC', Quantity: 10, Price: 100, Total_Value: -1000 },
+                { Date: '2024-01-04', Action: 'Sälj', Stock: 'ABC', Quantity: -10, Price: 105, Total_Value: 1050 }
+            ].reverse();
+
+            const stockPrices = { 'DEF': { '2024-01-02': 50 } };
+            const tradingDays = ['2024-01-02', '2024-01-03', '2024-01-04'];
+
+            const engine = new PortfolioEngine(transactions, stockPrices, tradingDays);
+            engine.process();
+            const twr = engine.calculateTWR();
+
+            // TWR should reflect the actual 5% gain, not a fake loss
+            const finalTWR = twr[twr.length - 1].twr;
+            assert.ok(finalTWR > 0, `TWR should be positive (5% gain), got ${finalTWR.toFixed(2)}%`);
+            assert.ok(finalTWR < 10, `TWR should be around 5%, got ${finalTWR.toFixed(2)}%`);
+        }
+    },
+    {
         name: 'CAGR bug: Multiple capital flows with loss should not return 0%',
         run: () => {
             // Minimal case that reproduces the bug: Multiple capital injections with portfolio value < total capital

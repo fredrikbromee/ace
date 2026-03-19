@@ -2,12 +2,62 @@ class DataService {
     static async loadData() {
         try {
             const transactions = await this.fetchAndParse(CONFIG.files.transactions, CONFIG.requiredColumns.transactions);
-            const benchmarkData = await this.loadBenchmarkData();
-            return { transactions, benchmarkData };
+            // Extract unique stock names from transactions
+            const stockNames = [...new Set(
+                transactions
+                    .filter(t => t.Stock)
+                    .map(t => t.Stock)
+            )];
+            const [benchmarkData, stockPrices] = await Promise.all([
+                this.loadBenchmarkData(),
+                this.loadStockPrices(stockNames)
+            ]);
+            return { transactions, benchmarkData, stockPrices };
         } catch (error) {
             Utils.showError(error.message);
             throw error; // Stop execution
         }
+    }
+
+    static async loadStockPrices(stockNames) {
+        const stockPrices = {};
+        const promises = stockNames
+            .filter(name => CONFIG.stockFileMapping && CONFIG.stockFileMapping[name])
+            .map(async (name) => {
+                const filename = CONFIG.files.stockDataDir + CONFIG.stockFileMapping[name];
+                try {
+                    const priceLookup = await new Promise((resolve, reject) => {
+                        Papa.parse(filename, {
+                            download: true,
+                            header: true,
+                            skipEmptyLines: true,
+                            dynamicTyping: true,
+                            complete: (results) => {
+                                if (results.errors.length > 0) {
+                                    reject(new Error(`Parsing error in ${filename}: ${results.errors[0].message}`));
+                                    return;
+                                }
+                                const lookup = {};
+                                (results.data || []).forEach(row => {
+                                    if (row.Date && row.Close != null) {
+                                        const dateStr = row.Date.toString().slice(0, 10);
+                                        lookup[dateStr] = row.Close;
+                                    }
+                                });
+                                resolve(lookup);
+                            },
+                            error: (err) => {
+                                reject(new Error(`Failed to load ${filename}: ${err.message}`));
+                            }
+                        });
+                    });
+                    stockPrices[name] = priceLookup;
+                } catch (e) {
+                    console.warn(`Could not load market data for ${name}: ${e.message}`);
+                }
+            });
+        await Promise.all(promises);
+        return stockPrices;
     }
 
     static async loadBenchmarkData() {

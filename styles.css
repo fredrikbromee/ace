@@ -76,11 +76,11 @@ h1 {
     word-break: keep-all;
 }
 
-.stat-value.positive {
+.stat-value.positive, .positive {
     color: #2e7d32;
 }
 
-.stat-value.negative {
+.stat-value.negative, .negative {
     color: #c62828;
 }
 

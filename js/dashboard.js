@@ -48,22 +48,43 @@ const Dashboard = {
         
         if (holdings.length === 0) {
             const row = tbody.insertRow();
-            row.innerHTML = '<td colspan="4" style="text-align:center">No active positions</td>';
+            row.innerHTML = '<td colspan="6" style="text-align:center">No active positions</td>';
             return;
         }
 
+        let totalNav = 0;
+        let totalUnrealized = 0;
+
         holdings.forEach(([stock, qty]) => {
             const row = tbody.insertRow();
-            const price = stats.lastPrices[stock] || stats.purchasePrices[stock] || 0;
-            const val = qty * price;
-            
+            const marketPrice = stats.lastPrices[stock] || stats.purchasePrices[stock] || 0;
+            const avgPrice = stats.avgPrices[stock] || 0;
+            const nav = qty * marketPrice;
+            const unrealized = qty * (marketPrice - avgPrice);
+            totalNav += nav;
+            totalUnrealized += unrealized;
+            const pnlClass = unrealized >= 0 ? 'positive' : 'negative';
+
             row.innerHTML = `
                 <td>${stock}</td>
                 <td>${qty}</td>
-                <td>${Utils.formatCurrency(price)}</td>
-                <td>${Utils.formatCurrency(val)}</td>
+                <td>${Utils.formatCurrency(avgPrice)}</td>
+                <td>${Utils.formatCurrency(marketPrice)}</td>
+                <td>${Utils.formatCurrency(nav)}</td>
+                <td class="${pnlClass}">${Utils.formatCurrency(unrealized)}</td>
             `;
         });
+
+        const footerRow = tbody.insertRow();
+        const pnlClass = totalUnrealized >= 0 ? 'positive' : 'negative';
+        footerRow.innerHTML = `
+            <td><strong>Total</strong></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td><strong>${Utils.formatCurrency(totalNav)}</strong></td>
+            <td class="${pnlClass}"><strong>${Utils.formatCurrency(totalUnrealized)}</strong></td>
+        `;
     },
 
     renderCharts(portfolioHistory, benchmarkHistory, portfolioTWR, benchmarkTWR) {
@@ -343,6 +364,19 @@ const Dashboard = {
         
         const gridData = sortedEvents.map(event => {
             const dateStr = event.date.toISOString().slice(0, 10);
+            if (event.type === 'Dividend') {
+                return {
+                    date: dateStr,
+                    action: event.action,
+                    stock: event.stock,
+                    quantity: event.quantity,
+                    price: event.price,
+                    totalValue: event.totalValue,
+                    feeDisplay: '',
+                    pnl: event.totalValue
+                };
+            }
+
             if (event.type === 'Trade') {
                 const totalValAbs = Math.abs(event.totalValue);
                 const expectedVal = Math.abs(event.quantity) * event.price;
@@ -351,7 +385,7 @@ const Dashboard = {
                 if (expectedVal > 0) feePct = (fee / expectedVal) * 100;
 
                 let feeDisplay = Utils.formatCurrency(fee);
-                if (feePct > 0) feeDisplay += ` (${feePct.toFixed(2)}%)`; 
+                if (feePct > 0) feeDisplay += ` (${feePct.toFixed(2)}%)`;
 
                 return {
                     date: dateStr,

@@ -40,9 +40,11 @@ class PortfolioEngine {
             const action = row.Action;
             if (action === 'Deposit' || action === 'Withdrawal') return;
 
+            const eventType = (action === 'Utdelning' || action === 'Utländsk källskatt') ? 'Dividend' : 'Trade';
+
             events.push({
                 date: Utils.parseDate(row.Date),
-                type: 'Trade',
+                type: eventType,
                 action: row.Action,
                 stock: row.Stock,
                 quantity: row.Quantity,
@@ -84,6 +86,8 @@ class PortfolioEngine {
             dayEvents.forEach(event => {
                 if (event.type === 'Trade') {
                     this.processTradeEvent(event, date, portfolioValueBeforeDay);
+                } else if (event.type === 'Dividend') {
+                    this.processDividendEvent(event);
                 }
             });
 
@@ -96,6 +100,12 @@ class PortfolioEngine {
                 lastPrice: { ...this.lastPrice }
             };
         });
+    }
+
+    processDividendEvent(event) {
+        // Utdelning (dividend) adds cash, Utländsk källskatt (withholding tax) subtracts cash
+        this.cashBalance += event.totalValue;
+        this.realizedPnL += event.totalValue;
     }
 
     processTradeEvent(event, date, portfolioValueBeforeDay) {
@@ -217,9 +227,28 @@ class PortfolioEngine {
             capitalFlowsByDate[dateStr].push(cf);
         });
 
-        let previousPortfolioValue = null;
-
         relevantDays.forEach(dateKey => {
+            // Before applying today's state, compute portfolio value using
+            // previous positions/cash at TODAY's market prices. This captures
+            // intra-day market movements (e.g. ex-dividend drops) that occur
+            // on capital injection days, which would otherwise be lost.
+            if (capitalFlowsByDate[dateKey] && currentState) {
+                let navBeforeTx = 0;
+                for (const [stock, qty] of Object.entries(currentState.positions)) {
+                    if (qty === 0) continue;
+                    const todayPrice = (this.stockPrices[stock] && this.stockPrices[stock][dateKey] != null)
+                        ? this.stockPrices[stock][dateKey]
+                        : marketPrices[stock] || tradePrices[stock];
+                    if (todayPrice != null) {
+                        navBeforeTx += qty * todayPrice;
+                    }
+                }
+                const valueBeforeTx = currentState.cashBalance + navBeforeTx;
+                capitalFlowsByDate[dateKey].forEach(cf => {
+                    cf.portfolioValueBefore = valueBeforeTx;
+                });
+            }
+
             // Apply transaction state snapshot if this day had transactions
             if (this.stateByDate[dateKey]) {
                 currentState = this.stateByDate[dateKey];
@@ -228,14 +257,6 @@ class PortfolioEngine {
             }
 
             if (!currentState) return; // before first transaction
-
-            // Update portfolioValueBefore for capital flows on this day
-            // using the previous day's market-based portfolio value
-            if (capitalFlowsByDate[dateKey] && previousPortfolioValue !== null) {
-                capitalFlowsByDate[dateKey].forEach(cf => {
-                    cf.portfolioValueBefore = previousPortfolioValue;
-                });
-            }
 
             // Look up market close prices for each held stock
             for (const stock of Object.keys(currentState.positions)) {
@@ -273,7 +294,6 @@ class PortfolioEngine {
                 positions: { ...currentState.positions }
             });
 
-            previousPortfolioValue = portfolioValue;
         });
 
         // Update lastPrice to use latest market prices for getStats()
@@ -304,6 +324,7 @@ class PortfolioEngine {
             cagr: cagr,
             holdings: this.currentPositions,
             purchasePrices: this.purchasePrices,
+            avgPrices: this.avgPrice,
             lastPrices: this.lastPrice,
             nav: last.nav,
             totalTransactionCosts: this.totalTransactionCosts,

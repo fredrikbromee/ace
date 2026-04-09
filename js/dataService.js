@@ -125,9 +125,10 @@ class DataService {
                         return;
                     }
 
-                    // Filter only Köp and Sälj, then transform
+                    // Filter relevant transaction types, then transform
+                    const allowedTypes = ['Köp', 'Sälj', 'Utdelning', 'Utländsk källskatt'];
                     const transformed = data
-                        .filter(row => row['Typ av transaktion'] === 'Köp' || row['Typ av transaktion'] === 'Sälj')
+                        .filter(row => allowedTypes.includes(row['Typ av transaktion']))
                         .map(row => {
                             const parseSwedishNum = (val) => {
                                 if (val === null || val === undefined || val === '') return 0;

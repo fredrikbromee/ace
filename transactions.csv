@@ -1,4 +1,6 @@
 Date,Account,Action,Stock,Quantity,Price,Total_Value
+2026-04-09,6530734,Köp,Nordea Bank,1788,167.80,-300125.40
+2026-04-09,6530734,Sälj,Boliden,-375,533.00,199776.00
 2026-04-08,6530734,Utdelning,Ericsson B,1953,1.50,2929.50
 2026-03-31,6530734,Utdelning,Handelsbanken A,4453,17.50,77927.50
 2026-03-31,6530734,Sälj,Swedbank A,-641,317.60,203482.60

@@ -465,6 +465,41 @@ const tests = [
             assert.ok(stats.cagr !== 0, `CAGR should not be 0 when portfolio value (${stats.portfolioValue}) < capital (${stats.totalCapitalIn}), got ${stats.cagr}%`);
             assert.ok(stats.cagr < 0, `CAGR should be negative for a loss, got ${stats.cagr}%`);
         }
+    },
+    {
+        name: 'Dividend on capital injection day counts as return, not lost',
+        run: () => {
+            // Day 1: Buy stock for 1000
+            // Day 2: Receive 100 dividend + buy more stock for 1000 (needs new capital)
+            // Day 3: no trades
+            // Without fix: dividend is excluded from portfolioValueBefore on day 2,
+            // so TWR drops as if the 100 vanished.
+            const transactions = [
+                { Date: '2024-01-01', Action: 'Köp', Stock: 'ABC', Quantity: 10, Price: 100, Total_Value: -1000 },
+                { Date: '2024-01-02', Action: 'Utdelning', Stock: 'ABC', Quantity: 10, Price: 10, Total_Value: 100 },
+                { Date: '2024-01-02', Action: 'Köp', Stock: 'ABC', Quantity: 10, Price: 100, Total_Value: -1000 }
+            ].reverse();
+
+            // Stock price stays flat at 100 — only return should come from dividend
+            const stockPrices = {
+                'ABC': { '2024-01-01': 100, '2024-01-02': 100, '2024-01-03': 100 }
+            };
+            const tradingDays = ['2024-01-01', '2024-01-02', '2024-01-03'];
+
+            const engine = new PortfolioEngine(transactions, stockPrices, tradingDays);
+            engine.process();
+            const stats = engine.getStats();
+            const twrHistory = engine.twrHistory;
+
+            // The dividend is 100 on a 1000 portfolio = 10% return
+            // TWR should reflect this, not show a dip
+            const lastTWR = twrHistory[twrHistory.length - 1].twr;
+            assert.ok(lastTWR > 0, `TWR should be positive (dividend is pure return), got ${lastTWR.toFixed(4)}%`);
+
+            // Day 2 TWR should not dip below day 1 TWR (stock flat + dividend received)
+            const day1TWR = twrHistory.find(t => t.date.toISOString().slice(0, 10) === '2024-01-02');
+            assert.ok(day1TWR.twr >= 0, `TWR on dividend+buy day should not dip negative, got ${day1TWR.twr.toFixed(4)}%`);
+        }
     }
 ];
 

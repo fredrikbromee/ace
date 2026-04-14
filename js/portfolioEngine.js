@@ -243,7 +243,17 @@ class PortfolioEngine {
                         navBeforeTx += qty * todayPrice;
                     }
                 }
-                const valueBeforeTx = currentState.cashBalance + navBeforeTx;
+                // Include dividends received today — they are organic returns,
+                // not external capital, so they belong in the closing sub-period
+                let dividendsToday = 0;
+                if (this.eventsByDate[dateKey]) {
+                    this.eventsByDate[dateKey].forEach(event => {
+                        if (event.type === 'Dividend') {
+                            dividendsToday += event.totalValue;
+                        }
+                    });
+                }
+                const valueBeforeTx = currentState.cashBalance + navBeforeTx + dividendsToday;
                 capitalFlowsByDate[dateKey].forEach(cf => {
                     cf.portfolioValueBefore = valueBeforeTx;
                 });
@@ -425,60 +435,56 @@ class PortfolioEngine {
         if (this.history.length === 0 || this.capitalFlows.length === 0) return [];
 
         // TWR: Chain sub-period returns between capital injections
-        // Formula: TWR = (1 + r1) × (1 + r2) × ... × (1 + rn) - 1
-        // Where r = (endValue - cashFlow) / startValue - 1
+        // On capital flow days, use portfolioValueBefore (which reflects today's
+        // market prices on yesterday's positions) to close the prior sub-period,
+        // then sum all capital injected that day to open the next sub-period.
+
+        // Group capital flows by date, preserving portfolioValueBefore from the first
+        const flowsByDate = {};
+        this.capitalFlows.forEach(cf => {
+            const dateStr = cf.date.toISOString().slice(0, 10);
+            if (!flowsByDate[dateStr]) {
+                flowsByDate[dateStr] = { totalAmount: 0, portfolioValueBefore: cf.portfolioValueBefore };
+            }
+            flowsByDate[dateStr].totalAmount += Math.abs(cf.amount);
+        });
+
         const twrData = [];
-        let cumulativeTWR = 1.0; // Start at 1.0 (100%)
+        let cumulativeTWR = 1.0;
         let portfolioValueAtStartOfPeriod = null;
         let lastFlowDate = null;
 
-        // Process each day in history
         this.history.forEach(entry => {
             const date = entry.date;
             const dateStr = date.toISOString().slice(0, 10);
-            const portfolioValue = entry.portfolioValue; // Value AFTER all transactions this day
+            const portfolioValue = entry.portfolioValue;
 
-            // Check if this date has a capital injection
-            const capitalFlow = this.capitalFlows.find(cf => {
-                const cfDate = cf.date.toISOString().slice(0, 10);
-                return cfDate === dateStr;
-            });
+            const dayFlows = flowsByDate[dateStr];
 
-            if (capitalFlow) {
-                // Capital injection day
+            if (dayFlows) {
                 if (portfolioValueAtStartOfPeriod !== null && lastFlowDate !== null) {
-                    // Calculate return for period since last injection
-                    // startValue = portfolio value at START of period (after last injection)
-                    // endValue = portfolio value BEFORE this injection
-                    // cashFlow = amount injected
-                    // Return = (endValue - cashFlow) / startValue - 1
-                    const newCapital = Math.abs(capitalFlow.amount);
-                    const endValueBeforeInjection = capitalFlow.portfolioValueBefore;
+                    const endValueBeforeInjection = dayFlows.portfolioValueBefore;
                     if (portfolioValueAtStartOfPeriod > 0) {
                         const periodReturn = (endValueBeforeInjection - portfolioValueAtStartOfPeriod) / portfolioValueAtStartOfPeriod;
                         cumulativeTWR = cumulativeTWR * (1 + periodReturn);
                     }
                 } else {
-                    // First capital injection - TWR starts at 1.0 (0%)
                     cumulativeTWR = 1.0;
                 }
 
-                // Start new period: portfolio value AFTER injection
                 portfolioValueAtStartOfPeriod = portfolioValue;
                 lastFlowDate = date;
             } else if (portfolioValueAtStartOfPeriod !== null) {
-                // Regular day - calculate return since last capital injection
                 const periodReturn = (portfolioValue - portfolioValueAtStartOfPeriod) / portfolioValueAtStartOfPeriod;
                 cumulativeTWR = cumulativeTWR * (1 + periodReturn);
-                portfolioValueAtStartOfPeriod = portfolioValue; // Update for next day
+                portfolioValueAtStartOfPeriod = portfolioValue;
             } else {
-                // Before first capital injection - TWR = 0%
                 cumulativeTWR = 1.0;
             }
 
             twrData.push({
                 date: date,
-                twr: (cumulativeTWR - 1) * 100 // Convert to percentage
+                twr: (cumulativeTWR - 1) * 100
             });
         });
 

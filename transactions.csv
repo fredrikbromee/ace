@@ -1,4 +1,5 @@
 Date,Account,Action,Stock,Quantity,Price,Total_Value
+2026-04-14,6530734,Withdrawal,,,,-200000
 2026-04-13,6530734,Sälj,Handelsbanken A,-2342,128.4282,300679.85
 2026-04-09,6530734,Köp,Nordea Bank,1788,167.80,-300125.40
 2026-04-09,6530734,Sälj,Boliden,-375,533.00,199776.00

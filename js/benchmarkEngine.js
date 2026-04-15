@@ -44,36 +44,45 @@ class BenchmarkEngine {
         // every time NEW external capital enters the portfolio, buy OMX30 with that amount
         const sortedBenchmarkDates = Object.keys(this.benchmarkPrices).sort();
         
-        // Build capital injection map by date
-        const capitalByDate = {};
+        // Build capital flow map by date (negative = injection, positive = withdrawal)
+        const flowsByDate = {};
         this.capitalFlows.forEach(flow => {
             const dateKey = flow.date.toISOString().slice(0, 10);
-            if (!capitalByDate[dateKey]) {
-                capitalByDate[dateKey] = 0;
+            if (!flowsByDate[dateKey]) {
+                flowsByDate[dateKey] = 0;
             }
-            capitalByDate[dateKey] += Math.abs(flow.amount); // flow.amount is negative, store positive
+            flowsByDate[dateKey] += flow.amount; // negative = money in, positive = money out
         });
 
         // Find first injection date
-        const firstCapitalDate = Object.keys(capitalByDate).sort()[0];
-        
+        const firstCapitalDate = Object.keys(flowsByDate).sort()[0];
+
         // Track units and invested amount over time
         let cumulativeUnits = 0;
         let cumulativeInvested = 0;
-        
+
         sortedBenchmarkDates.forEach(dateKey => {
             if (dateKey < firstCapitalDate) return;
-            
+
             const omxPrice = this.benchmarkPrices[dateKey];
-            
-            // If capital was injected on this date, buy OMX30 units
-            if (capitalByDate[dateKey]) {
-                const amount = capitalByDate[dateKey];
-                const unitsBought = amount / omxPrice;
-                cumulativeUnits += unitsBought;
-                cumulativeInvested += amount;
+
+            if (flowsByDate[dateKey]) {
+                const netFlow = flowsByDate[dateKey];
+                if (netFlow < 0) {
+                    // Capital injection — buy OMX units
+                    const amount = Math.abs(netFlow);
+                    const unitsBought = amount / omxPrice;
+                    cumulativeUnits += unitsBought;
+                    cumulativeInvested += amount;
+                } else {
+                    // Withdrawal — sell OMX units proportionally
+                    const amount = netFlow;
+                    const unitsSold = amount / omxPrice;
+                    cumulativeUnits -= unitsSold;
+                    cumulativeInvested -= amount;
+                }
             }
-            
+
             // Record history if we have units
             if (cumulativeUnits > 0) {
                 const benchmarkValue = cumulativeUnits * omxPrice;
@@ -188,40 +197,38 @@ class BenchmarkEngine {
         let benchmarkValueAtStartOfPeriod = null;
         let lastFlowDate = null;
 
-        // Build capital injection map by date
-        const capitalByDate = {};
+        // Build capital flow map by date
+        const flowsByDate = {};
         this.capitalFlows.forEach(flow => {
             const dateKey = flow.date.toISOString().slice(0, 10);
-            if (!capitalByDate[dateKey]) {
-                capitalByDate[dateKey] = 0;
+            if (!flowsByDate[dateKey]) {
+                flowsByDate[dateKey] = 0;
             }
-            capitalByDate[dateKey] += Math.abs(flow.amount);
+            flowsByDate[dateKey] += flow.amount;
         });
 
         // Process each day in history
         this.history.forEach(entry => {
             const date = entry.date;
             const dateStr = date.toISOString().slice(0, 10);
-            const benchmarkValue = entry.benchmarkValue; // Value AFTER injection (if any)
+            const benchmarkValue = entry.benchmarkValue;
 
-            // Check if this date has a capital injection
-            const capitalInjected = capitalByDate[dateStr] || 0;
+            const netFlow = flowsByDate[dateStr] || 0;
 
-            if (capitalInjected > 0) {
-                // Injection day
+            if (netFlow !== 0) {
+                // Capital flow day (injection or withdrawal)
                 if (benchmarkValueAtStartOfPeriod !== null && lastFlowDate !== null) {
-                    // endValue before injection = benchmarkValue - capitalInjected
-                    const endValueBeforeInjection = benchmarkValue - capitalInjected;
+                    // endValue before flow: for injection subtract bought amount,
+                    // for withdrawal add back sold amount
+                    const endValueBeforeFlow = benchmarkValue + netFlow;
                     if (benchmarkValueAtStartOfPeriod > 0) {
-                        const periodReturn = (endValueBeforeInjection - benchmarkValueAtStartOfPeriod) / benchmarkValueAtStartOfPeriod;
+                        const periodReturn = (endValueBeforeFlow - benchmarkValueAtStartOfPeriod) / benchmarkValueAtStartOfPeriod;
                         cumulativeTWR = cumulativeTWR * (1 + periodReturn);
                     }
                 } else {
-                    // First injection - TWR starts at 1.0 (0%)
                     cumulativeTWR = 1.0;
                 }
 
-                // Start new period: benchmark value AFTER injection
                 benchmarkValueAtStartOfPeriod = benchmarkValue;
                 lastFlowDate = date;
             } else if (benchmarkValueAtStartOfPeriod !== null) {

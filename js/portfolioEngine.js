@@ -38,9 +38,16 @@ class PortfolioEngine {
 
         chronologicalTransactions.forEach((row) => {
             const action = row.Action;
-            if (action === 'Deposit' || action === 'Withdrawal') return;
+            if (action === 'Deposit') return;
 
-            const eventType = (action === 'Utdelning' || action === 'Utländsk källskatt') ? 'Dividend' : 'Trade';
+            let eventType;
+            if (action === 'Utdelning' || action === 'Utländsk källskatt') {
+                eventType = 'Dividend';
+            } else if (action === 'Withdrawal') {
+                eventType = 'Withdrawal';
+            } else {
+                eventType = 'Trade';
+            }
 
             events.push({
                 date: Utils.parseDate(row.Date),
@@ -88,6 +95,8 @@ class PortfolioEngine {
                     this.processTradeEvent(event, date, portfolioValueBeforeDay);
                 } else if (event.type === 'Dividend') {
                     this.processDividendEvent(event);
+                } else if (event.type === 'Withdrawal') {
+                    this.processWithdrawalEvent(event, portfolioValueBeforeDay);
                 }
             });
 
@@ -106,6 +115,17 @@ class PortfolioEngine {
         // Utdelning (dividend) adds cash, Utländsk källskatt (withholding tax) subtracts cash
         this.cashBalance += event.totalValue;
         this.realizedPnL += event.totalValue;
+    }
+
+    processWithdrawalEvent(event, portfolioValueBeforeDay) {
+        const amount = Math.abs(event.totalValue);
+        this.cashBalance -= amount;
+        this.totalCapitalIn -= amount;
+        this.capitalFlows.push({
+            date: event.date,
+            amount: amount, // positive = money out (opposite of injection)
+            portfolioValueBefore: portfolioValueBeforeDay
+        });
     }
 
     processTradeEvent(event, date, portfolioValueBeforeDay) {

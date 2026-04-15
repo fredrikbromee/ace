@@ -5,6 +5,7 @@ const fs = require('fs');
 const Utils = require(path.join(__dirname, '..', 'js/utils.js'));
 global.Utils = Utils;
 const PortfolioEngine = require(path.join(__dirname, '..', 'js/portfolioEngine.js'));
+const BenchmarkEngine = require(path.join(__dirname, '..', 'js/benchmarkEngine.js'));
 
 // Helper to parse CSV
 function parseCSV(csvContent) {
@@ -499,6 +500,32 @@ const tests = [
             // Day 2 TWR should not dip below day 1 TWR (stock flat + dividend received)
             const day1TWR = twrHistory.find(t => t.date.toISOString().slice(0, 10) === '2024-01-02');
             assert.ok(day1TWR.twr >= 0, `TWR on dividend+buy day should not dip negative, got ${day1TWR.twr.toFixed(4)}%`);
+        }
+    },
+    {
+        name: 'Benchmark sells units on withdrawal instead of buying more',
+        run: () => {
+            // Day 1: inject 1000, buy OMX at 100 => 10 units
+            // Day 2: withdraw 500, sell OMX at 100 => 5 units sold, 5 remain
+            // Day 3: OMX still 100 => value should be 500, not 1500
+            const capitalFlows = [
+                { date: new Date('2024-01-01'), amount: -1000 },
+                { date: new Date('2024-01-02'), amount: 500 }
+            ];
+            const buyEvents = [];
+            const benchmarkPrices = {
+                '2024-01-01': 100,
+                '2024-01-02': 100,
+                '2024-01-03': 100
+            };
+
+            const engine = new BenchmarkEngine(capitalFlows, buyEvents, benchmarkPrices);
+            const history = engine.process();
+
+            const day3 = history.find(h => h.date.toISOString().slice(0, 10) === '2024-01-03');
+            assert.ok(day3, 'Should have history for day 3');
+            assert.strictEqual(day3.units, 5, `Should have 5 units after withdrawal, got ${day3.units}`);
+            assert.strictEqual(day3.benchmarkValue, 500, `Benchmark value should be 500, got ${day3.benchmarkValue}`);
         }
     }
 ];

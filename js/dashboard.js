@@ -169,12 +169,12 @@ const Dashboard = {
         `;
     },
 
-    renderCharts(portfolioHistory, benchmarkHistory, portfolioTWR, benchmarkTWR) {
+    renderCharts(portfolioHistory, benchmarkHistory, portfolioTWR, benchmarkTWR, annotations = []) {
         // Chart 1: Portfolio Value (absolute SEK)
         this.renderPortfolioValueChart(portfolioHistory, benchmarkHistory);
 
-        // Chart 2: TWR Comparison + daily outperformance bars
-        this.renderTWRChart(portfolioTWR, benchmarkTWR);
+        // Chart 2: TWR Comparison + daily outperformance bars + annotations
+        this.renderTWRChart(portfolioTWR, benchmarkTWR, annotations);
     },
 
     renderPortfolioValueChart(portfolioHistory, benchmarkHistory) {
@@ -329,7 +329,7 @@ const Dashboard = {
         });
     },
 
-    renderTWRChart(portfolioTWR, benchmarkTWR) {
+    renderTWRChart(portfolioTWR, benchmarkTWR, annotations = []) {
         // Build TWR data maps
         const portfolioTWRByDate = {};
         portfolioTWR.forEach(entry => {
@@ -444,6 +444,9 @@ const Dashboard = {
                     mode: 'index',
                     intersect: false,
                 },
+                onClick: annotations && annotations.length
+                    ? (event) => this._onTwrChartClick(event)
+                    : undefined,
                 plugins: {
                     tooltip: {
                         callbacks: {
@@ -461,6 +464,9 @@ const Dashboard = {
                     },
                     legend: {
                         position: 'top',
+                    },
+                    annotation: {
+                        annotations: this._buildChartAnnotations(annotations, labels)
                     }
                 },
                 scales: {
@@ -497,6 +503,105 @@ const Dashboard = {
                 }
             }
         });
+    },
+
+    // Annotation hit map populated by _buildChartAnnotations: { num, chartDate, annotation }
+    _chartAnnotations: [],
+    _activeAnnotation: null,
+
+    // Build a Chart.js annotation-plugin config from annotation rows.
+    // Each annotation becomes an always-visible dashed vertical line with a numbered badge.
+    // Annotation date is snapped to the nearest trading day on or after it; annotations
+    // beyond the chart's date range are skipped silently. Per-annotation click handlers
+    // are not used — the chart-wide onClick does hit-testing on x-pixel positions so we
+    // can also detect "click on empty area" to dismiss.
+    _buildChartAnnotations(annotations, chartLabels) {
+        this._chartAnnotations = [];
+        if (!annotations || !annotations.length || !chartLabels.length) return {};
+        const labelSet = new Set(chartLabels);
+        const lastLabel = chartLabels[chartLabels.length - 1];
+        const config = {};
+
+        annotations.forEach((a, idx) => {
+            const num = idx + 1;
+            let chartDate = a.date;
+            if (!labelSet.has(chartDate)) {
+                chartDate = chartLabels.find(l => l >= a.date);
+                if (!chartDate || a.date > lastLabel) return;
+            }
+            this._chartAnnotations.push({ num, chartDate, annotation: a });
+            config[`ann_${num}`] = {
+                type: 'line',
+                xMin: chartDate,
+                xMax: chartDate,
+                borderColor: 'rgba(120, 81, 169, 0.7)',
+                borderWidth: 1.5,
+                borderDash: [4, 4],
+                label: {
+                    content: String(num),
+                    display: true,
+                    position: 'start',
+                    backgroundColor: 'rgba(120, 81, 169, 0.95)',
+                    color: '#fff',
+                    font: { size: 11, weight: 'bold' },
+                    padding: { top: 2, bottom: 2, left: 7, right: 7 },
+                    borderRadius: 10
+                }
+            };
+        });
+        return config;
+    },
+
+    // Hit-test a chart click against the rendered annotation x-positions.
+    // Returns the matching annotation entry or null for empty-area clicks.
+    _hitTestAnnotation(event) {
+        if (!this.twrChart || !this._chartAnnotations.length) return null;
+        const xScale = this.twrChart.scales.x;
+        if (!xScale) return null;
+        const TOLERANCE_PX = 12;
+        for (const entry of this._chartAnnotations) {
+            const annX = xScale.getPixelForValue(entry.chartDate);
+            if (annX != null && Math.abs(event.x - annX) <= TOLERANCE_PX) {
+                return entry;
+            }
+        }
+        return null;
+    },
+
+    _onTwrChartClick(event) {
+        const hit = this._hitTestAnnotation(event);
+        if (!hit) {
+            this._hideAnnotationText();
+            return;
+        }
+        if (this._activeAnnotation === hit.num) {
+            this._hideAnnotationText();
+        } else {
+            this._showAnnotationText(hit);
+        }
+    },
+
+    _showAnnotationText(entry) {
+        const panel = document.getElementById('annotation-detail');
+        if (!panel) return;
+        panel.querySelector('.annotation-num').textContent = entry.num;
+        panel.querySelector('.annotation-date').textContent = entry.annotation.date;
+        panel.querySelector('.annotation-title').textContent = entry.annotation.title;
+        panel.querySelector('.annotation-description').textContent = entry.annotation.description;
+        panel.hidden = false;
+        this._activeAnnotation = entry.num;
+    },
+
+    _hideAnnotationText() {
+        const panel = document.getElementById('annotation-detail');
+        if (panel) panel.hidden = true;
+        this._activeAnnotation = null;
+    },
+
+    // Annotation rendering is fully driven by the chart now (markers always visible);
+    // this just resets the detail panel so a new dataset doesn't carry stale state.
+    renderAnnotations() {
+        this._hideAnnotationText();
     },
 
     renderTransactions(historyEvents) {

@@ -8,11 +8,12 @@ class DataService {
                     .filter(t => t.Stock)
                     .map(t => t.Stock)
             )];
-            const [benchmarkData, stockPrices] = await Promise.all([
+            const [benchmarkData, stockPrices, annotations] = await Promise.all([
                 this.loadBenchmarkData(),
-                this.loadStockPrices(stockNames)
+                this.loadStockPrices(stockNames),
+                this.loadAnnotations()
             ]);
-            return { transactions, benchmarkData, stockPrices };
+            return { transactions, benchmarkData, stockPrices, annotations };
         } catch (error) {
             Utils.showError(error.message);
             throw error; // Stop execution
@@ -94,6 +95,37 @@ class DataService {
                 error: (err) => {
                     reject(new Error(`Failed to load benchmark data: ${err.message}`));
                 }
+            });
+        });
+    }
+
+    // Annotations are optional — a missing file or parse error resolves to an empty list
+    // rather than rejecting, so the dashboard works fine without one.
+    static loadAnnotations() {
+        return new Promise((resolve) => {
+            Papa.parse(CONFIG.files.annotations, {
+                download: true,
+                header: true,
+                skipEmptyLines: true,
+                quotes: true,
+                quoteChar: '"',
+                escapeChar: '"',
+                complete: (results) => {
+                    if (!results.data || results.errors.length > 0) {
+                        resolve([]);
+                        return;
+                    }
+                    const annotations = results.data
+                        .filter(r => r.Date && r.Title)
+                        .map(r => ({
+                            date: r.Date.toString().slice(0, 10),
+                            title: r.Title,
+                            description: r.Description || ''
+                        }))
+                        .sort((a, b) => a.date.localeCompare(b.date));
+                    resolve(annotations);
+                },
+                error: () => resolve([])
             });
         });
     }

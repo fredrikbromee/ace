@@ -2,7 +2,8 @@ const CONFIG = {
     files: {
         transactions: 'transactions.csv',
         benchmark: 'data/^OMX.csv',
-        stockDataDir: 'data/stocks/'
+        stockDataDir: 'data/stocks/',
+        annotations: 'annotations.csv'
     },
     requiredColumns: {
         transactions: ['Date', 'Action', 'Stock', 'Quantity', 'Price', 'Total_Value'],

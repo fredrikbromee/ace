@@ -1,4 +1,4 @@
-async function runDashboard(transactions, benchmarkData, stockPrices) {
+async function runDashboard(transactions, benchmarkData, stockPrices, annotations = []) {
     Dashboard.cleanup();
 
     const errorDisplay = document.getElementById('error-display');
@@ -35,20 +35,23 @@ async function runDashboard(transactions, benchmarkData, stockPrices) {
     Dashboard.renderStats(stats);
     Dashboard.renderComparisonTable(stats, benchmarkStats, portfolioTWR, benchmarkTWR);
     Dashboard.renderHoldings(stats);
-    Dashboard.renderCharts(portfolioHistory, benchmarkHistory, portfolioTWR, benchmarkTWR);
+    Dashboard.renderCharts(portfolioHistory, benchmarkHistory, portfolioTWR, benchmarkTWR, annotations);
+    Dashboard.renderAnnotations(annotations);
     Dashboard.renderTransactions(engine.processedEvents);
 }
 
 (async function init() {
     let benchmarkData;
     let stockPrices;
+    let annotations = [];
 
     try {
         const data = await DataService.loadData();
         console.log('Data loaded successfully');
         benchmarkData = data.benchmarkData;
         stockPrices = data.stockPrices;
-        await runDashboard(data.transactions, benchmarkData, stockPrices);
+        annotations = data.annotations || [];
+        await runDashboard(data.transactions, benchmarkData, stockPrices, annotations);
     } catch (e) {
         console.error(e);
         if (document.getElementById('error-display').style.display !== 'block') {
@@ -77,8 +80,11 @@ async function runDashboard(transactions, benchmarkData, stockPrices) {
                 const stockNames = [...new Set(transactions.filter(t => t.Stock).map(t => t.Stock))];
                 stockPrices = await DataService.loadStockPrices(stockNames);
             }
+            if (!annotations.length) {
+                annotations = await DataService.loadAnnotations();
+            }
 
-            await runDashboard(transactions, benchmarkData, stockPrices);
+            await runDashboard(transactions, benchmarkData, stockPrices, annotations);
             statusEl.textContent = `Loaded ${transactions.length} transactions`;
         } catch (e) {
             console.error(e);

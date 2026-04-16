@@ -164,6 +164,53 @@ th {
     font-weight: 600;
 }
 
+/* Timeline annotations: chart markers are always visible; clicking one shows
+   its text in this single detail panel below the chart. */
+.annotation-detail {
+    margin-top: 12px;
+    padding: 10px 12px;
+    background-color: rgba(120, 81, 169, 0.06);
+    border-left: 3px solid rgba(120, 81, 169, 0.7);
+    border-radius: 4px;
+}
+
+.annotation-detail-header {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.annotation-num {
+    background-color: rgba(120, 81, 169, 0.95);
+    color: #fff;
+    font-weight: bold;
+    font-size: 0.78em;
+    border-radius: 10px;
+    padding: 1px 7px;
+    min-width: 18px;
+    text-align: center;
+}
+
+.annotation-date {
+    color: #666;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.88em;
+}
+
+.annotation-title {
+    font-weight: 600;
+    font-size: 0.95em;
+}
+
+.annotation-description {
+    margin: 0;
+    font-size: 0.9em;
+    color: #333;
+    line-height: 1.45;
+}
+
 /* Performance comparison table */
 .comparison-table {
     width: 100%;

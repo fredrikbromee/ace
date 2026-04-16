@@ -164,6 +164,81 @@ th {
     font-weight: 600;
 }
 
+/* Performance comparison table */
+.comparison-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: clamp(0.8em, 1.6vw, 0.95em);
+}
+
+.comparison-table th,
+.comparison-table td {
+    padding: 8px 6px;
+    border-bottom: 1px solid #eee;
+    vertical-align: top;
+    white-space: normal;
+}
+
+.comparison-table .metric-col {
+    text-align: left;
+    font-weight: 500;
+    width: 40%;
+}
+
+.comparison-table .num-col {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.comparison-table thead th.num-col {
+    color: #666;
+    font-weight: 600;
+}
+
+.comparison-table .metric-help {
+    cursor: pointer;
+}
+
+.comparison-table .metric-help summary {
+    list-style: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    user-select: none;
+}
+
+.comparison-table .metric-help summary::-webkit-details-marker {
+    display: none;
+}
+
+.comparison-table .info-icon {
+    color: #999;
+    font-size: 0.85em;
+}
+
+.comparison-table .metric-help[open] .info-icon {
+    color: var(--primary-color);
+}
+
+.comparison-table .metric-help p {
+    margin: 6px 0 2px;
+    font-size: 0.85em;
+    color: #555;
+    font-weight: normal;
+    line-height: 1.4;
+}
+
+@media (max-width: 480px) {
+    .comparison-table th,
+    .comparison-table td {
+        padding: 6px 4px;
+    }
+    .comparison-table .metric-col {
+        width: 38%;
+    }
+}
+
 /* Transactions Grid.js styling */
 #transactions-grid-container {
     margin-top: 10px;

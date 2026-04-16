@@ -18,26 +18,108 @@ const Dashboard = {
         }
     },
 
-    renderStats(stats, benchmarkStats) {
+    renderStats(stats) {
         document.getElementById('total-value').textContent = Utils.formatCurrency(stats.portfolioValue);
-        document.getElementById('annualized-twr').textContent = Utils.formatPercent(stats.annualizedTWR);
-        document.getElementById('cagr').textContent = Utils.formatPercent(stats.cagr);
         document.getElementById('cash-balance').textContent = Utils.formatCurrency(stats.cash);
         document.getElementById('txn-costs-total').textContent = Utils.formatCurrency(stats.totalTransactionCosts);
         document.getElementById('net-profit').textContent = Utils.formatCurrency(stats.netProfit);
-        
-        // Benchmark stats
-        if (benchmarkStats) {
-            document.getElementById('benchmark-twr').textContent = Utils.formatPercent(benchmarkStats.benchmarkAnnualizedTWR);
-            document.getElementById('benchmark-cagr').textContent = Utils.formatPercent(benchmarkStats.benchmarkCAGR);
-            const alpha = stats.annualizedTWR - benchmarkStats.benchmarkAnnualizedTWR;
-            const alphaEl = document.getElementById('alpha');
-            alphaEl.textContent = Utils.formatPercent(alpha);
-            alphaEl.classList.remove('positive', 'negative');
-            alphaEl.classList.add(alpha >= 0 ? 'positive' : 'negative');
-        }
-        
         document.getElementById('dashboard').style.display = 'grid';
+    },
+
+    renderComparisonTable(stats, benchmarkStats, portfolioTWR, benchmarkTWR) {
+        const tbody = document.querySelector('#comparison-table tbody');
+        tbody.innerHTML = '';
+        if (!benchmarkStats) return;
+
+        const pStats = StatsEngine.compute(portfolioTWR);
+        const bStats = StatsEngine.compute(benchmarkTWR);
+
+        const fmtPctAbs = v => v == null ? '—' : v.toFixed(2) + '%';
+        const fmtRatio = v => v == null ? '—' : v.toFixed(2);
+        const fmtDiffPp = (a, b) => {
+            if (a == null || b == null) return '—';
+            const d = a - b;
+            return (d >= 0 ? '+' : '') + d.toFixed(2) + ' pp';
+        };
+        const fmtDiffRatio = (a, b) => {
+            if (a == null || b == null) return '—';
+            const d = a - b;
+            return (d >= 0 ? '+' : '') + d.toFixed(2);
+        };
+
+        const rows = [
+            {
+                label: 'Annualized TWR',
+                you: fmtPctAbs(stats.annualizedTWR),
+                bench: fmtPctAbs(benchmarkStats.benchmarkAnnualizedTWR),
+                diff: fmtDiffPp(stats.annualizedTWR, benchmarkStats.benchmarkAnnualizedTWR),
+                diffSign: stats.annualizedTWR - benchmarkStats.benchmarkAnnualizedTWR,
+                lowerIsBetter: false,
+                help: 'Time-Weighted Return scaled to a full year. Removes the effect of when capital was added or withdrawn — a fair measure of pure strategy performance.'
+            },
+            {
+                label: 'CAGR',
+                you: fmtPctAbs(stats.cagr),
+                bench: fmtPctAbs(benchmarkStats.benchmarkCAGR),
+                diff: fmtDiffPp(stats.cagr, benchmarkStats.benchmarkCAGR),
+                diffSign: stats.cagr - benchmarkStats.benchmarkCAGR,
+                lowerIsBetter: false,
+                help: 'Compound Annual Growth Rate — the smooth yearly rate that would carry the starting value to the ending value over the period.'
+            },
+            {
+                label: 'Sharpe',
+                you: fmtRatio(pStats.sharpe),
+                bench: fmtRatio(bStats.sharpe),
+                diff: fmtDiffRatio(pStats.sharpe, bStats.sharpe),
+                diffSign: (pStats.sharpe ?? 0) - (bStats.sharpe ?? 0),
+                lowerIsBetter: false,
+                help: 'Annualized return divided by annualized volatility (std of daily returns). Higher = more return per unit of total risk. >1 is solid, >2 is strong.'
+            },
+            {
+                label: 'Sortino',
+                you: fmtRatio(pStats.sortino),
+                bench: fmtRatio(bStats.sortino),
+                diff: fmtDiffRatio(pStats.sortino, bStats.sortino),
+                diffSign: (pStats.sortino ?? 0) - (bStats.sortino ?? 0),
+                lowerIsBetter: false,
+                help: 'Like Sharpe but penalizes only downside volatility. Rewards strategies that limit losing days while still capturing upside.'
+            },
+            {
+                label: 'Max Drawdown',
+                you: fmtPctAbs(pStats.maxDrawdown * 100),
+                bench: fmtPctAbs(bStats.maxDrawdown * 100),
+                diff: fmtDiffPp(pStats.maxDrawdown * 100, bStats.maxDrawdown * 100),
+                diffSign: -(pStats.maxDrawdown - bStats.maxDrawdown), // less drawdown = better
+                lowerIsBetter: true,
+                help: 'Largest peak-to-trough decline experienced during the period. Lower (less negative) is better.'
+            },
+            {
+                label: 'Calmar',
+                you: fmtRatio(pStats.calmar),
+                bench: fmtRatio(bStats.calmar),
+                diff: fmtDiffRatio(pStats.calmar, bStats.calmar),
+                diffSign: (pStats.calmar ?? 0) - (bStats.calmar ?? 0),
+                lowerIsBetter: false,
+                help: 'CAGR divided by absolute max drawdown. Measures how much annual return you got per unit of worst loss endured.'
+            }
+        ];
+
+        rows.forEach(r => {
+            const tr = document.createElement('tr');
+            const diffClass = r.diffSign > 0 ? 'positive' : r.diffSign < 0 ? 'negative' : '';
+            tr.innerHTML = `
+                <td class="metric-col">
+                    <details class="metric-help">
+                        <summary>${r.label} <span class="info-icon" aria-hidden="true">ⓘ</span></summary>
+                        <p>${r.help}</p>
+                    </details>
+                </td>
+                <td class="num-col">${r.you}</td>
+                <td class="num-col">${r.bench}</td>
+                <td class="num-col ${diffClass}">${r.diff}</td>
+            `;
+            tbody.appendChild(tr);
+        });
     },
 
     renderHoldings(stats) {

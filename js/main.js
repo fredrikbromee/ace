@@ -32,7 +32,8 @@ async function runDashboard(transactions, benchmarkData, stockPrices) {
     console.log('Total capital in:', stats.totalCapitalIn);
     console.log('Final portfolio value:', stats.portfolioValue);
 
-    Dashboard.renderStats(stats, benchmarkStats);
+    Dashboard.renderStats(stats);
+    Dashboard.renderComparisonTable(stats, benchmarkStats, portfolioTWR, benchmarkTWR);
     Dashboard.renderHoldings(stats);
     Dashboard.renderCharts(portfolioHistory, benchmarkHistory, portfolioTWR, benchmarkTWR);
     Dashboard.renderTransactions(engine.processedEvents);

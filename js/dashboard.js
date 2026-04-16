@@ -90,9 +90,9 @@ const Dashboard = {
     renderCharts(portfolioHistory, benchmarkHistory, portfolioTWR, benchmarkTWR) {
         // Chart 1: Portfolio Value (absolute SEK)
         this.renderPortfolioValueChart(portfolioHistory, benchmarkHistory);
-        
-        // Chart 2: TWR Comparison
-        this.renderTWRChart(portfolioHistory, benchmarkHistory, portfolioTWR, benchmarkTWR);
+
+        // Chart 2: TWR Comparison + daily outperformance bars
+        this.renderTWRChart(portfolioTWR, benchmarkTWR);
     },
 
     renderPortfolioValueChart(portfolioHistory, benchmarkHistory) {
@@ -149,7 +149,9 @@ const Dashboard = {
                         yAxisID: 'y',
                         tension: 0.1,
                         fill: true,
-                        borderWidth: 2
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        pointHoverRadius: 4
                     },
                     {
                         label: 'OMX30 Value (SEK)',
@@ -160,7 +162,9 @@ const Dashboard = {
                         tension: 0.1,
                         fill: false,
                         borderWidth: 2,
-                        borderDash: [5, 5]
+                        borderDash: [5, 5],
+                        pointRadius: 0,
+                        pointHoverRadius: 4
                     },
                     {
                         label: 'Cash Balance (SEK)',
@@ -171,7 +175,9 @@ const Dashboard = {
                         borderDash: [3, 3],
                         tension: 0.1,
                         fill: false,
-                        borderWidth: 1.5
+                        borderWidth: 1.5,
+                        pointRadius: 0,
+                        pointHoverRadius: 4
                     }
                 ]
             },
@@ -241,7 +247,7 @@ const Dashboard = {
         });
     },
 
-    renderTWRChart(portfolioHistory, benchmarkHistory, portfolioTWR, benchmarkTWR) {
+    renderTWRChart(portfolioTWR, benchmarkTWR) {
         // Build TWR data maps
         const portfolioTWRByDate = {};
         portfolioTWR.forEach(entry => {
@@ -261,38 +267,68 @@ const Dashboard = {
         const labels = [];
         const portfolioTWRValues = [];
         const benchmarkTWRValues = [];
+        const dailyDeltas = [];
+        const barColors = [];
 
         let lastBenchmarkTWR = 0;
+        let prevPortfolioTWR = null;
+        let prevBenchmarkTWR = null;
 
         portfolioDates.forEach(date => {
-            labels.push(date);
-            portfolioTWRValues.push(portfolioTWRByDate[date] || 0);
-            
+            const pTWR = portfolioTWRByDate[date] || 0;
             if (benchmarkTWRByDate[date] !== undefined) {
-                benchmarkTWRValues.push(benchmarkTWRByDate[date]);
                 lastBenchmarkTWR = benchmarkTWRByDate[date];
-            } else {
-                benchmarkTWRValues.push(lastBenchmarkTWR);
             }
+
+            labels.push(date);
+            portfolioTWRValues.push(pTWR);
+            benchmarkTWRValues.push(lastBenchmarkTWR);
+
+            // Daily outperformance: portfolio's daily return − benchmark's daily return
+            if (prevPortfolioTWR === null) {
+                dailyDeltas.push(null);
+                barColors.push('rgba(0,0,0,0)');
+            } else {
+                const delta = (pTWR - prevPortfolioTWR) - (lastBenchmarkTWR - prevBenchmarkTWR);
+                dailyDeltas.push(delta);
+                barColors.push(delta >= 0 ? 'rgba(76, 175, 80, 0.75)' : 'rgba(244, 67, 54, 0.75)');
+            }
+
+            prevPortfolioTWR = pTWR;
+            prevBenchmarkTWR = lastBenchmarkTWR;
         });
+
+        // Single shared scale. Lines (cumulative %) dominate the range; bars (daily pp)
+        // are small. yMin sits just below zero so the zero line sits near the bottom and
+        // negative bars/lines stay visible.
+        const validDeltas = dailyDeltas.filter(v => v !== null);
+        const allValues = [...portfolioTWRValues, ...benchmarkTWRValues, ...validDeltas];
+        const dataMax = Math.max(0, ...allValues);
+        const dataMin = Math.min(0, ...allValues);
+        const yMax = dataMax * 1.05;
+        const yMin = Math.min(dataMin, -2); // small breathing room below zero
 
         const ctx = document.getElementById('twrChart').getContext('2d');
         this.twrChart = new Chart(ctx, {
-            type: 'line',
             data: {
                 labels: labels,
                 datasets: [
                     {
+                        type: 'line',
                         label: 'Your Portfolio TWR',
                         data: portfolioTWRValues,
                         borderColor: '#2E86AB',
                         backgroundColor: 'rgba(46, 134, 171, 0.1)',
                         yAxisID: 'y',
                         tension: 0.1,
-                        fill: true,
-                        borderWidth: 2
+                        fill: false,
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        pointHoverRadius: 4,
+                        order: 1
                     },
                     {
+                        type: 'line',
                         label: 'OMX30 TWR (Buy & Hold)',
                         data: benchmarkTWRValues,
                         borderColor: '#C73E1D',
@@ -301,7 +337,21 @@ const Dashboard = {
                         tension: 0.1,
                         fill: false,
                         borderWidth: 2,
-                        borderDash: [5, 5]
+                        borderDash: [5, 5],
+                        pointRadius: 0,
+                        pointHoverRadius: 4,
+                        order: 1
+                    },
+                    {
+                        type: 'bar',
+                        label: 'Daily outperformance (pp)',
+                        data: dailyDeltas,
+                        backgroundColor: barColors,
+                        borderWidth: 0,
+                        yAxisID: 'y',
+                        barPercentage: 1.0,
+                        categoryPercentage: 1.0,
+                        order: 2
                     }
                 ]
             },
@@ -316,14 +366,14 @@ const Dashboard = {
                     tooltip: {
                         callbacks: {
                             label: function(context) {
-                                let label = context.dataset.label || '';
-                                if (label) {
-                                    label += ': ';
+                                const label = context.dataset.label || '';
+                                const v = context.parsed.y;
+                                if (v === null) return '';
+                                if (context.dataset.type === 'bar') {
+                                    const sign = v >= 0 ? '+' : '';
+                                    return `${label}: ${sign}${v.toFixed(3)} pp`;
                                 }
-                                if (context.parsed.y !== null) {
-                                    label += context.parsed.y.toFixed(2) + '%';
-                                }
-                                return label;
+                                return `${label}: ${v.toFixed(2)}%`;
                             }
                         }
                     },
@@ -347,10 +397,19 @@ const Dashboard = {
                         type: 'linear',
                         display: true,
                         position: 'left',
+                        min: yMin,
+                        max: yMax,
                         title: {
                             display: true,
-                            text: 'Time-Weighted Return %',
-                            color: '#2E86AB'
+                            text: 'TWR % / Daily pp'
+                        },
+                        grid: {
+                            color: function(ctx) {
+                                return ctx.tick.value === 0 ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0.05)';
+                            },
+                            lineWidth: function(ctx) {
+                                return ctx.tick.value === 0 ? 1.5 : 1;
+                            }
                         }
                     }
                 }

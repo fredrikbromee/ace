@@ -3,6 +3,6 @@ Date,Title,Description
 2026-02-08,"Blacklist SAAB from buys","SAAB-B.ST excluded from buys. Its historical run was pinning it at rank 1 on ~85% of days and crowding out the rest of the ranking."
 2026-02-20,"Move to slot-based selection","Shift from binary-direction/threshold logic to slot-based ranking."
 2026-02-26,"Models retrained on new data source","Models retrained on data from EODHD, no more yahoo finance."
-2026-03-09,"Iran war - oversold","Sold positions at way too low price - got hit in a low-liquidity opening auction. Should have held."
+2026-03-09,"Iran war - oversold","Sold positions at way too low price - got hit in a low-liquidity opening auction. Should have held - fixed in next strategy update."
 2026-03-24,"Switch to high-conviction entry, patient exit.","New more picky selection logic based on model inputs. Fixed sell prices."
 2026-03-31,"Fix bug that avoided some sells","Pipeline bugs that changed strategy inputs, prior daily signals were running on slightly wrong inputs."

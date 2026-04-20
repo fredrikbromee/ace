@@ -14,11 +14,6 @@
     <div class="container">
         <header>
             <h1>Portfolio Analysis</h1>
-            <div class="upload-section">
-                <label for="csv-upload" class="upload-label">Upload transactions CSV</label>
-                <input type="file" id="csv-upload" accept=".csv" />
-                <span id="upload-status" class="upload-status"></span>
-            </div>
         </header>
 
         <div id="error-display" class="error-message"></div>
@@ -108,6 +103,16 @@
             <div class="card full-width">
                 <h2>Transaction History</h2>
                 <div id="transactions-grid-container"></div>
+            </div>
+
+            <!-- Upload (moved to bottom — used rarely once data is loaded) -->
+            <div class="card full-width upload-card">
+                <h2>Upload transactions</h2>
+                <div class="upload-section">
+                    <label for="csv-upload" class="upload-label">Replace with a new CSV:</label>
+                    <input type="file" id="csv-upload" accept=".csv" />
+                    <span id="upload-status" class="upload-status"></span>
+                </div>
             </div>
         </div>
     </div>

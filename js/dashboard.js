@@ -644,6 +644,20 @@ const Dashboard = {
                     pnl: event.realizedPnL
                 };
             }
+
+            if (event.type === 'Withdrawal') {
+                return {
+                    date: dateStr,
+                    action: event.action,
+                    stock: '',
+                    quantity: '',
+                    price: null,
+                    totalValue: event.totalValue,
+                    feeDisplay: '',
+                    pnl: null
+                };
+            }
+
             return null;
         }).filter(Boolean);
 

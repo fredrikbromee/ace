@@ -146,5 +146,8 @@ yarn.lock
 # Optional npm cache directory
 .npm
 
+# Claude Code personal settings
+.claude/settings.local.json
+
 
 

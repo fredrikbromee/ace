@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd /Users/fredrikbromee/projects/ace && node tests/portfolioEngine.test.js && node tests/dataService.test.js && node tests/statsEngine.test.js",
+            "statusMessage": "Running tests (pre-edit)..."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd /Users/fredrikbromee/projects/ace && node tests/portfolioEngine.test.js && node tests/dataService.test.js && node tests/statsEngine.test.js",
+            "statusMessage": "Running tests (post-edit)..."
+          }
+        ]
+      }
+    ]
+  }
+}

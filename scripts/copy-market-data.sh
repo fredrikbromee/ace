@@ -53,4 +53,7 @@ else
     echo "WARNING: $BENCHMARK_SRC not found"
 fi
 
+date -u +%Y%m%d%H%M%S > "$PROJECT_DIR/version.txt"
+echo "Bumped version.txt to $(cat "$PROJECT_DIR/version.txt")"
+
 echo "Done."

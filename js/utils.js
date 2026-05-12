@@ -20,6 +20,13 @@ const Utils = {
         errorEl.textContent = `Error: ${message}`;
         errorEl.style.display = 'block';
         console.error(message);
+    },
+
+    versionedUrl(path) {
+        const v = typeof window !== 'undefined' ? window.APP_VERSION : '';
+        if (!v) return path;
+        const sep = path.includes('?') ? '&' : '?';
+        return `${path}${sep}v=${encodeURIComponent(v)}`;
     }
 };
 

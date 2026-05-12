@@ -117,15 +117,37 @@
         </div>
     </div>
 
-    <!-- JavaScript modules loaded in dependency order -->
     <script src="https://unpkg.com/gridjs/dist/gridjs.umd.js"></script>
-    <script src="js/config.js"></script>
-    <script src="js/utils.js"></script>
-    <script src="js/dataService.js"></script>
-    <script src="js/portfolioEngine.js"></script>
-    <script src="js/benchmarkEngine.js"></script>
-    <script src="js/statsEngine.js"></script>
-    <script src="js/dashboard.js"></script>
-    <script src="js/main.js"></script>
+    <script>
+    // Cache-busting bootstrap: fetch version.txt fresh, then load local modules
+    // with ?v=<version> so a stale cached copy of one file can't mix with a
+    // fresh copy of another (which is what desynced totals in Safari).
+    (async () => {
+        const version = await fetch('version.txt', { cache: 'no-store' })
+            .then(r => r.ok ? r.text() : '')
+            .then(s => s.trim())
+            .catch(() => '');
+        window.APP_VERSION = version;
+        const modules = [
+            'js/config.js',
+            'js/utils.js',
+            'js/dataService.js',
+            'js/portfolioEngine.js',
+            'js/benchmarkEngine.js',
+            'js/statsEngine.js',
+            'js/dashboard.js',
+            'js/main.js',
+        ];
+        for (const src of modules) {
+            await new Promise((resolve, reject) => {
+                const s = document.createElement('script');
+                s.src = version ? `${src}?v=${encodeURIComponent(version)}` : src;
+                s.onload = resolve;
+                s.onerror = () => reject(new Error(`Failed to load ${src}`));
+                document.body.appendChild(s);
+            });
+        }
+    })();
+    </script>
 </body>
 </html>

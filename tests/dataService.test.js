@@ -21,7 +21,8 @@ global.CONFIG = {
 global.Utils = {
     showError: (msg) => {
         console.error('Error:', msg);
-    }
+    },
+    versionedUrl: (path) => path
 };
 
 global.Papa = Papa;

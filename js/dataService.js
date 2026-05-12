@@ -28,7 +28,7 @@ class DataService {
                 const filename = CONFIG.files.stockDataDir + CONFIG.stockFileMapping[name];
                 try {
                     const priceLookup = await new Promise((resolve, reject) => {
-                        Papa.parse(filename, {
+                        Papa.parse(Utils.versionedUrl(filename), {
                             download: true,
                             header: true,
                             skipEmptyLines: true,
@@ -63,7 +63,7 @@ class DataService {
 
     static async loadBenchmarkData() {
         return new Promise((resolve, reject) => {
-            Papa.parse(CONFIG.files.benchmark, {
+            Papa.parse(Utils.versionedUrl(CONFIG.files.benchmark), {
                 download: true,
                 header: true,
                 skipEmptyLines: true,
@@ -103,7 +103,7 @@ class DataService {
     // rather than rejecting, so the dashboard works fine without one.
     static loadAnnotations() {
         return new Promise((resolve) => {
-            Papa.parse(CONFIG.files.annotations, {
+            Papa.parse(Utils.versionedUrl(CONFIG.files.annotations), {
                 download: true,
                 header: true,
                 skipEmptyLines: true,
@@ -198,7 +198,7 @@ class DataService {
 
     static fetchAndParse(filename, requiredCols) {
         return new Promise((resolve, reject) => {
-            Papa.parse(filename, {
+            Papa.parse(Utils.versionedUrl(filename), {
                 download: true,
                 header: true,
                 skipEmptyLines: true,

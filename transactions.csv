@@ -1,4 +1,5 @@
 Date,Account,Action,Stock,Quantity,Price,Total_Value
+2026-05-11,6530734,Köp,Sandvik,273,365.00,-99704.00
 2026-05-08,6530734,Sälj,Boliden,-500,538.60,269201.00
 2026-05-07,6530734,Sälj,Boliden,-566,529.60,299654.60
 2026-05-07,6530734,Köp,Ericsson B,3603,111.00,-400032.00

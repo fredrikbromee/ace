@@ -71,6 +71,21 @@
                 </div>
             </div>
 
+            <!-- Returns heat maps (justETF style) -->
+            <div class="card full-width">
+                <h2>Returns heat map</h2>
+                <div class="heatmap-toggle" role="group" aria-label="Heat map mode">
+                    <button type="button" id="heatmap-mode-abs" class="heatmap-toggle-btn active">Portfolio</button>
+                    <button type="button" id="heatmap-mode-vs" class="heatmap-toggle-btn">vs OMX30</button>
+                </div>
+                <p class="heatmap-note" id="heatmap-note">Period returns from time-weighted return (neutral to deposits &amp; withdrawals), the way a fund's monthly track record is reported.</p>
+                <h3 class="heatmap-subtitle">Monthly</h3>
+                <div id="monthly-heatmap" class="heatmap-scroll"></div>
+                <h3 class="heatmap-subtitle">Weekly</h3>
+                <div id="weekly-heatmap" class="heatmap-scroll"></div>
+            </div>
+
+
             <!-- Chart 1: Portfolio Value -->
             <div class="card full-width">
                 <h2>Portfolio Value</h2>
@@ -78,7 +93,6 @@
                     <canvas id="portfolioValueChart"></canvas>
                 </div>
             </div>
-
             <!-- Holdings Table -->
             <div class="card full-width">
                 <h2>Current Holdings</h2>
@@ -135,6 +149,7 @@
             'js/portfolioEngine.js',
             'js/benchmarkEngine.js',
             'js/statsEngine.js',
+            'js/heatmapEngine.js',
             'js/dashboard.js',
             'js/main.js',
         ];

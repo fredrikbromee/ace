@@ -348,3 +348,109 @@ th {
     font-size: clamp(0.5rem, 0.8vw, 0.8rem);
     padding: clamp(2px, 0.5vw, 6px) clamp(2px, 0.8vw, 8px);
 }
+
+/* Returns heat maps */
+.heatmap-note {
+    color: #666;
+    font-size: 0.8em;
+    margin: 0 0 10px;
+}
+
+.heatmap-toggle {
+    display: inline-flex;
+    border: 1px solid #d6d6e0;
+    border-radius: 6px;
+    overflow: hidden;
+    margin: 4px 0 8px;
+}
+
+.heatmap-toggle-btn {
+    background: #fff;
+    color: #555;
+    border: none;
+    padding: 5px 12px;
+    font-size: 0.78em;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.heatmap-toggle-btn + .heatmap-toggle-btn {
+    border-left: 1px solid #d6d6e0;
+}
+
+.heatmap-toggle-btn.active {
+    background: var(--primary-color);
+    color: #fff;
+}
+
+.heatmap-toggle-btn:disabled {
+    color: #bbb;
+    cursor: not-allowed;
+}
+
+.heatmap-subtitle {
+    font-size: 0.85em;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #888;
+    margin: 14px 0 6px;
+}
+
+.heatmap-scroll {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.heatmap-table {
+    border-collapse: separate;
+    border-spacing: 2px;
+    width: 100%;
+    table-layout: fixed;
+}
+
+.heatmap-table th,
+.heatmap-table td {
+    text-align: center;
+    font-size: clamp(0.48rem, 0.95vw, 0.75rem);
+    padding: 5px 1px;
+    border-radius: 4px;
+    white-space: nowrap;
+}
+
+.heatmap-table thead th {
+    color: #888;
+    font-weight: 600;
+}
+
+.heatmap-table th.row-head {
+    text-align: left;
+    color: var(--text-color);
+    font-weight: 600;
+    white-space: nowrap;
+    width: 3.8em;
+    padding-right: 4px;
+}
+
+/* Monthly grid has 14 columns — give its year label minimal width so the
+   month cells get the room. (Weekly is roomier and keeps the wider label.) */
+#monthly-heatmap .row-head {
+    width: 2.4em;
+}
+
+.heatmap-table .total-head,
+.heatmap-table .heat-cell.total-cell {
+    font-weight: 700;
+    border-left: 2px solid #eee;
+}
+
+.heatmap-table .heat-cell {
+    background-color: #f6f6f9;
+    color: #bbb;
+    font-variant-numeric: tabular-nums;
+}
+
+.heatmap-empty {
+    color: #888;
+    font-size: 0.85em;
+    margin: 4px 0;
+}

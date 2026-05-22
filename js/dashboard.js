@@ -122,6 +122,157 @@ const Dashboard = {
         });
     },
 
+    _heatmapMode: 'absolute',
+
+    // justETF-style returns heat maps. Defaults to the portfolio's own period returns;
+    // a toggle switches to outperformance vs OMX30 (the portfolio's return minus the
+    // benchmark's, per period, in percentage points).
+    renderReturnsHeatmaps(portfolioTWR, benchmarkTWR) {
+        this._heatmapTWR = { portfolioTWR, benchmarkTWR };
+
+        const absBtn = document.getElementById('heatmap-mode-abs');
+        const vsBtn = document.getElementById('heatmap-mode-vs');
+        const hasBench = benchmarkTWR && benchmarkTWR.length >= 2;
+        if (vsBtn) {
+            vsBtn.disabled = !hasBench;
+            vsBtn.onclick = () => this._setHeatmapMode('outperformance');
+        }
+        if (absBtn) absBtn.onclick = () => this._setHeatmapMode('absolute');
+
+        // Fall back to absolute if a prior session left us in vs-mode with no benchmark.
+        if (this._heatmapMode === 'outperformance' && !hasBench) this._heatmapMode = 'absolute';
+        this._setHeatmapMode(this._heatmapMode);
+    },
+
+    _setHeatmapMode(mode) {
+        this._heatmapMode = mode;
+        const absBtn = document.getElementById('heatmap-mode-abs');
+        const vsBtn = document.getElementById('heatmap-mode-vs');
+        if (absBtn) absBtn.classList.toggle('active', mode === 'absolute');
+        if (vsBtn) vsBtn.classList.toggle('active', mode === 'outperformance');
+
+        const note = document.getElementById('heatmap-note');
+        if (note) {
+            note.textContent = mode === 'outperformance'
+                ? 'Outperformance vs OMX30, in percentage points — the portfolio’s period return minus the index’s.'
+                : 'Period returns from time-weighted return (neutral to deposits & withdrawals), the way a fund’s monthly track record is reported.';
+        }
+
+        const monthlyEl = document.getElementById('monthly-heatmap');
+        const weeklyEl = document.getElementById('weekly-heatmap');
+        if (!monthlyEl || !weeklyEl) return;
+
+        const { portfolioTWR, benchmarkTWR } = this._heatmapTWR || {};
+        if (!portfolioTWR || portfolioTWR.length < 2) {
+            monthlyEl.innerHTML = '<p class="heatmap-empty">Not enough history yet.</p>';
+            weeklyEl.innerHTML = '';
+            return;
+        }
+
+        monthlyEl.innerHTML = this._buildMonthlyHeatmap(HeatmapEngine.monthlyGrid(portfolioTWR, benchmarkTWR, mode));
+        weeklyEl.innerHTML = this._buildWeeklyHeatmap(HeatmapEngine.weeklyGrid(portfolioTWR, benchmarkTWR, mode));
+    },
+
+    // Diverging green/red background scaled to the strongest cell in the grid.
+    _heatStyle(ret, maxAbs) {
+        if (ret == null || isNaN(ret)) return '';
+        const mag = maxAbs > 0 ? Math.min(1, Math.abs(ret) / maxAbs) : 0;
+        const intensity = Math.pow(mag, 0.7);
+        const alpha = (0.12 + intensity * 0.8).toFixed(3);
+        const rgb = ret >= 0 ? '46, 125, 50' : '198, 40, 40';
+        const fg = intensity > 0.55 ? '#fff' : 'inherit';
+        return `background-color: rgba(${rgb}, ${alpha}); color: ${fg};`;
+    },
+
+    // Full value with unit, used in tooltips. unit '%' for returns, ' pp' for outperformance.
+    _fmtVal(v, unit) {
+        if (v == null || isNaN(v)) return '';
+        const x = v * 100;
+        const sign = x > 0 ? '+' : x < 0 ? '−' : '';
+        return `${sign}${Math.abs(x).toFixed(1)}${unit === 'pp' ? ' pp' : '%'}`;
+    },
+
+    // Compact cell text — no unit so the grid fits in mobile portrait. The full
+    // value (with unit) still shows in the cell's tooltip.
+    _fmtCell(v) {
+        if (v == null || isNaN(v)) return '';
+        const x = v * 100;
+        const sign = x > 0 ? '+' : x < 0 ? '−' : '';
+        return `${sign}${Math.abs(x).toFixed(1)}`;
+    },
+
+    _cell(cell, maxAbs, tooltip) {
+        if (!cell || cell.value == null || isNaN(cell.value)) return '<td class="heat-cell"></td>';
+        return `<td class="heat-cell" style="${this._heatStyle(cell.value, maxAbs)}" title="${tooltip}">${this._fmtCell(cell.value)}</td>`;
+    },
+
+    _isoDay(date) {
+        return date.toISOString().slice(0, 10);
+    },
+
+    _buildMonthlyHeatmap(grid) {
+        if (!grid.years.length) return '<p class="heatmap-empty">No monthly data.</p>';
+
+        const unit = grid.unit;
+        const vs = unit === 'pp' ? ' vs OMX30' : '';
+
+        // Scale colours off month cells only, so a big year total can't wash everything out.
+        let maxAbs = 0;
+        grid.years.forEach(y => {
+            for (let m = 0; m < 12; m++) {
+                const p = grid.byYearMonth[y][m];
+                if (p && p.value != null) maxAbs = Math.max(maxAbs, Math.abs(p.value));
+            }
+        });
+
+        const head = ['Year', ...HeatmapEngine.MONTHS, 'Year']
+            .map((h, i) => `<th${i === 0 ? ' class="row-head"' : ''}${i === 13 ? ' class="total-head"' : ''}>${h}</th>`)
+            .join('');
+
+        const rows = grid.years.map(year => {
+            const cells = [];
+            for (let m = 0; m < 12; m++) {
+                const p = grid.byYearMonth[year][m];
+                const tip = (p && p.value != null) ? `${HeatmapEngine.MONTHS[m]} ${year}: ${this._fmtVal(p.value, unit)}${vs}` : '';
+                cells.push(this._cell(p, maxAbs, tip));
+            }
+            const total = grid.yearTotals[year];
+            const totalCell = `<td class="heat-cell total-cell" style="${this._heatStyle(total, maxAbs)}" title="${year} total: ${this._fmtVal(total, unit)}${vs}">${this._fmtCell(total)}</td>`;
+            return `<tr><th class="row-head">'${String(year).slice(2)}</th>${cells.join('')}${totalCell}</tr>`;
+        }).join('');
+
+        return `<table class="heatmap-table"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>`;
+    },
+
+    _buildWeeklyHeatmap(grid) {
+        if (!grid.rows.length) return '<p class="heatmap-empty">No weekly data.</p>';
+
+        const unit = grid.unit;
+        const vs = unit === 'pp' ? ' vs OMX30' : '';
+
+        let maxAbs = 0;
+        grid.rows.forEach(r => r.weeks.forEach(p => { if (p.value != null) maxAbs = Math.max(maxAbs, Math.abs(p.value)); }));
+
+        const colHeads = [];
+        for (let c = 0; c < grid.maxCols; c++) colHeads.push(`<th>W${c + 1}</th>`);
+        const head = `<th class="row-head">Month</th>${colHeads.join('')}<th class="total-head">Month</th>`;
+
+        const rows = grid.rows.map(row => {
+            const [y, m] = row.monthKey.split('-');
+            const label = `${HeatmapEngine.MONTHS[+m - 1]} '${y.slice(2)}`;
+            const cells = [];
+            for (let c = 0; c < grid.maxCols; c++) {
+                const p = row.weeks[c];
+                const tip = (p && p.value != null) ? `${this._isoDay(p.startDate)} → ${this._isoDay(p.endDate)}: ${this._fmtVal(p.value, unit)}${vs}` : '';
+                cells.push(this._cell(p, maxAbs, tip));
+            }
+            const totalCell = `<td class="heat-cell total-cell" style="${this._heatStyle(row.total, maxAbs)}" title="${label} total: ${this._fmtVal(row.total, unit)}${vs}">${this._fmtCell(row.total)}</td>`;
+            return `<tr><th class="row-head">${label}</th>${cells.join('')}${totalCell}</tr>`;
+        }).join('');
+
+        return `<table class="heatmap-table"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>`;
+    },
+
     renderHoldings(stats) {
         const tbody = document.querySelector('#holdings-table tbody');
         tbody.innerHTML = '';

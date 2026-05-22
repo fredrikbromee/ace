@@ -34,6 +34,7 @@ async function runDashboard(transactions, benchmarkData, stockPrices, annotation
 
     Dashboard.renderStats(stats);
     Dashboard.renderComparisonTable(stats, benchmarkStats, portfolioTWR, benchmarkTWR);
+    Dashboard.renderReturnsHeatmaps(portfolioTWR, benchmarkTWR);
     Dashboard.renderHoldings(stats);
     Dashboard.renderCharts(portfolioHistory, benchmarkHistory, portfolioTWR, benchmarkTWR, annotations);
     Dashboard.renderAnnotations(annotations);

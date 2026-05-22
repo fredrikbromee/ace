@@ -95,6 +95,13 @@ h1 {
     padding: 0 4px;
 }
 
+.upload-help {
+    font-size: 0.85em;
+    color: #666;
+    margin: 4px 0 0;
+    max-width: 60ch;
+}
+
 .upload-section {
     display: flex;
     align-items: center;

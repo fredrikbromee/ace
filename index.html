@@ -20,6 +20,8 @@
         <div id="error-display" class="error-message"></div>
 
         <div id="dashboard" style="display: none;">
+            <!-- Performance scorecard: headline KPIs beside the vs-OMX30 metrics table. -->
+            <div class="scorecard">
             <!-- Headline KPIs: each pairs the current value with a sparkline trend and a
                  comparison (return on capital, vs OMX30, % of value) so no number stands
                  context-free. -->
@@ -61,11 +63,8 @@
             </div>
             </div><!-- /stats-grid -->
 
-            <!-- Big cards: full-width by default; pairs marked half-width sit side by
-                 side on wide screens (≥1100px), single column below. -->
-            <div class="cards-grid">
-            <!-- Performance comparison vs OMX30 (paired with the TWR chart it summarises) -->
-            <div class="card half-width">
+            <!-- vs-OMX30 metrics table, beside the KPIs -->
+            <div class="card">
                 <h2>Performance vs OMX30</h2>
                 <div id="comparison-table-container">
                     <table id="comparison-table" class="comparison-table">
@@ -81,10 +80,15 @@
                     </table>
                 </div>
             </div>
+            </div><!-- /scorecard -->
 
-            <!-- Chart 2: TWR Comparison + Daily Outperformance -->
-            <div class="card half-width">
+            <!-- Big cards: full-width by default; half-width cards pair up side by side
+                 on wide screens (≥1100px), single column below. -->
+            <div class="cards-grid">
+            <!-- Chart 2: TWR Comparison + Daily Outperformance (hero, full width) -->
+            <div class="card full-width">
                 <h2>TWR Comparison &amp; Daily Outperformance vs OMX30</h2>
+                <p class="chart-note">Lines: cumulative time-weighted return, labelled at the right. Bars: daily outperformance vs OMX30 (percentage points) — <span class="gain-text">green</span> ahead, <span class="loss-text">red</span> behind.</p>
                 <div id="twr-chart-container">
                     <canvas id="twrChart"></canvas>
                 </div>

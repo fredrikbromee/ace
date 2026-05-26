@@ -131,6 +131,43 @@ const Dashboard = {
         });
     },
 
+    // Chart.js plugin: label each line directly at its right-hand end in the line's own
+    // colour (Tufte direct labelling — no legend round-trip). A line dataset opts in with
+    // a `directLabel` name; an optional `directLabelFormat(value)` appends its end value.
+    // Labels nudge apart if endpoints nearly coincide. Needs layout.padding.right for room.
+    _endLabelPlugin: {
+        id: 'endLabels',
+        afterDatasetsDraw(chart) {
+            const { ctx, chartArea } = chart;
+            const placed = [];
+            chart.data.datasets.forEach((ds, i) => {
+                if (!ds.directLabel) return;
+                const meta = chart.getDatasetMeta(i);
+                if (meta.hidden) return;
+                let pt = null, val = null;
+                for (let j = ds.data.length - 1; j >= 0; j--) {
+                    if (ds.data[j] != null && meta.data[j]) { pt = meta.data[j]; val = ds.data[j]; break; }
+                }
+                if (!pt) return;
+                const valStr = ds.directLabelFormat ? ds.directLabelFormat(val) : '';
+                const text = valStr ? `${ds.directLabel} ${valStr}` : ds.directLabel;
+                let y = pt.y;
+                for (const py of placed) {
+                    if (Math.abs(y - py) < 13) y = py + (y >= py ? 13 : -13);
+                }
+                y = Math.max(chartArea.top + 7, Math.min(chartArea.bottom - 7, y));
+                placed.push(y);
+                ctx.save();
+                ctx.font = '600 11px sans-serif';
+                ctx.fillStyle = ds.borderColor;
+                ctx.textBaseline = 'middle';
+                ctx.textAlign = 'left';
+                ctx.fillText(text, pt.x + 6, y);
+                ctx.restore();
+            });
+        }
+    },
+
     // Provenance line under the title: source, currency, and the date span the data
     // covers (the end date doubles as the "as of" — the most recent day with data).
     renderMeta(portfolioHistory) {
@@ -506,11 +543,13 @@ const Dashboard = {
         const ctx = document.getElementById('portfolioValueChart').getContext('2d');
         this.portfolioValueChart = new Chart(ctx, {
             type: 'line',
+            plugins: [this._endLabelPlugin],
             data: {
                 labels: labels,
                 datasets: [
                     {
-                        label: 'Your Portfolio Value (SEK)',
+                        label: 'Portfolio Value (SEK)',
+                        directLabel: 'Portfolio',
                         data: portfolioValues,
                         borderColor: '#2E86AB',
                         yAxisID: 'y',
@@ -522,6 +561,7 @@ const Dashboard = {
                     },
                     {
                         label: 'OMX30 Value (SEK)',
+                        directLabel: 'OMX30',
                         data: benchmarkValues,
                         borderColor: this.BENCHMARK_COLOR,
                         yAxisID: 'y',
@@ -534,6 +574,8 @@ const Dashboard = {
                     },
                     {
                         label: 'Cash (% of value)',
+                        directLabel: 'Cash',
+                        directLabelFormat: v => v.toFixed(0) + '%',
                         data: cashPct,
                         borderColor: '#F18F01',
                         yAxisID: 'y1',
@@ -549,6 +591,8 @@ const Dashboard = {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                // Room on the right for the direct end-of-line labels ("Portfolio").
+                layout: { padding: { right: 58 } },
                 interaction: {
                     mode: 'index',
                     intersect: false,
@@ -571,7 +615,8 @@ const Dashboard = {
                         }
                     },
                     legend: {
-                        position: 'top',
+                        // Lines are labelled directly at their ends — no legend needed.
+                        display: false
                     }
                 },
                 scales: {
@@ -597,22 +642,14 @@ const Dashboard = {
                         }
                     },
                     y1: {
+                        // Hidden axis: the cash line is still positioned on its own 0–100
+                        // scale, but it reads via its direct end label ("Cash N%") rather
+                        // than a second visible axis — declutters and frees the right margin.
                         type: 'linear',
-                        display: true,
+                        display: false,
                         position: 'right',
                         min: 0,
-                        max: 100,
-                        grid: {
-                            drawOnChartArea: false,
-                        },
-                        title: {
-                            display: true,
-                            text: 'Cash (% of value)',
-                            color: '#F18F01'
-                        },
-                        ticks: {
-                            callback: v => v + '%'
-                        }
+                        max: 100
                     }
                 }
             }
@@ -680,14 +717,19 @@ const Dashboard = {
         const yMax = dataMax * 1.05;
         const yMin = Math.min(dataMin, -2); // small breathing room below zero
 
+        const fmtPct = v => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(1) + '%';
+
         const ctx = document.getElementById('twrChart').getContext('2d');
         this.twrChart = new Chart(ctx, {
+            plugins: [this._endLabelPlugin],
             data: {
                 labels: labels,
                 datasets: [
                     {
                         type: 'line',
-                        label: 'Your Portfolio TWR',
+                        label: 'Portfolio TWR',
+                        directLabel: 'Portfolio',
+                        directLabelFormat: fmtPct,
                         data: portfolioTWRValues,
                         borderColor: '#2E86AB',
                         backgroundColor: 'rgba(46, 134, 171, 0.1)',
@@ -702,6 +744,8 @@ const Dashboard = {
                     {
                         type: 'line',
                         label: 'OMX30 TWR (Buy & Hold)',
+                        directLabel: 'OMX30',
+                        directLabelFormat: fmtPct,
                         data: benchmarkTWRValues,
                         borderColor: this.BENCHMARK_COLOR,
                         yAxisID: 'y',
@@ -729,6 +773,8 @@ const Dashboard = {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                // Room on the right for the direct end-of-line labels ("Portfolio +24.1%").
+                layout: { padding: { right: 88 } },
                 interaction: {
                     mode: 'index',
                     intersect: false,
@@ -752,7 +798,9 @@ const Dashboard = {
                         }
                     },
                     legend: {
-                        position: 'top',
+                        // Both lines are labelled directly at their ends and the bars are
+                        // explained by the caption under the heading — no legend needed.
+                        display: false
                     },
                     annotation: {
                         annotations: this._buildChartAnnotations(annotations, labels)

@@ -44,6 +44,16 @@ h1 {
     font-variant-numeric: tabular-nums;
 }
 
+/* Caption under a chart heading (e.g. explaining the TWR bars). */
+.chart-note {
+    color: #666;
+    font-size: 0.8em;
+    margin: 0 0 8px;
+}
+
+.gain-text { color: var(--color-gain); font-weight: 600; }
+.loss-text { color: var(--color-loss); font-weight: 600; }
+
 #dashboard {
     display: flex;
     flex-direction: column;
@@ -53,11 +63,33 @@ h1 {
     box-sizing: border-box;
 }
 
-/* KPI row: tiles responsively, several across on wide, stacking on narrow. */
+/* Performance scorecard: KPIs beside the vs-OMX30 metrics table on wide screens (a
+   fund-tearsheet header), stacked on narrow. KPIs take the larger share. */
+.scorecard {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    align-items: start;
+}
+
+@media (min-width: 1100px) {
+    .scorecard {
+        grid-template-columns: 2fr 1fr;
+    }
+}
+
+/* KPI grid: fixed column counts so the 6 cards wrap evenly (3+3) instead of auto-fit
+   stranding one on its own row. Two across on small screens, three from 700px up. */
 .stats-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+    grid-template-columns: repeat(2, 1fr);
     gap: 10px;
+}
+
+@media (min-width: 700px) {
+    .stats-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
 }
 
 /* Big cards: one column by default; two on wide screens so related cards can sit

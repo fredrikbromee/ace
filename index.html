@@ -19,15 +19,22 @@
 
         <div id="error-display" class="error-message"></div>
 
-        <div id="dashboard" class="dashboard-grid" style="display: none;">
+        <div id="dashboard" style="display: none;">
             <!-- Headline KPIs: each pairs the current value with a sparkline trend and a
                  comparison (return on capital, vs OMX30, % of value) so no number stands
                  context-free. -->
+            <div class="stats-grid">
             <div class="card stat-box">
-                <div class="stat-value" id="total-value">Loading...</div>
-                <div class="stat-label">Portfolio Value</div>
-                <div class="stat-spark" id="spark-value"></div>
-                <div class="stat-delta" id="delta-value"></div>
+                <div class="stat-value" id="total-return">Loading...</div>
+                <div class="stat-label">Total Return (TWR)</div>
+                <div class="stat-spark" id="spark-return"></div>
+                <div class="stat-delta" id="delta-return"></div>
+            </div>
+            <div class="card stat-box">
+                <div class="stat-value" id="alpha-ann">Loading...</div>
+                <div class="stat-label">Alpha vs OMX30 (ann.)</div>
+                <div class="stat-spark" id="spark-alpha"></div>
+                <div class="stat-delta" id="delta-alpha"></div>
             </div>
             <div class="card stat-box">
                 <div class="stat-value" id="net-profit">Loading...</div>
@@ -36,10 +43,10 @@
                 <div class="stat-delta" id="delta-profit"></div>
             </div>
             <div class="card stat-box">
-                <div class="stat-value" id="total-return">Loading...</div>
-                <div class="stat-label">Total Return (TWR)</div>
-                <div class="stat-spark" id="spark-return"></div>
-                <div class="stat-delta" id="delta-return"></div>
+                <div class="stat-value" id="total-value">Loading...</div>
+                <div class="stat-label">Portfolio Value</div>
+                <div class="stat-spark" id="spark-value"></div>
+                <div class="stat-delta" id="delta-value"></div>
             </div>
             <div class="card stat-box">
                 <div class="stat-value" id="cash-balance">Loading...</div>
@@ -52,9 +59,13 @@
                 <div class="stat-label">Transaction Costs</div>
                 <div class="stat-delta" id="delta-costs"></div>
             </div>
+            </div><!-- /stats-grid -->
 
-            <!-- Performance comparison vs OMX30 -->
-            <div class="card full-width">
+            <!-- Big cards: full-width by default; pairs marked half-width sit side by
+                 side on wide screens (≥1100px), single column below. -->
+            <div class="cards-grid">
+            <!-- Performance comparison vs OMX30 (paired with the TWR chart it summarises) -->
+            <div class="card half-width">
                 <h2>Performance vs OMX30</h2>
                 <div id="comparison-table-container">
                     <table id="comparison-table" class="comparison-table">
@@ -72,7 +83,7 @@
             </div>
 
             <!-- Chart 2: TWR Comparison + Daily Outperformance -->
-            <div class="card full-width">
+            <div class="card half-width">
                 <h2>TWR Comparison &amp; Daily Outperformance vs OMX30</h2>
                 <div id="twr-chart-container">
                     <canvas id="twrChart"></canvas>
@@ -95,10 +106,16 @@
                     <button type="button" id="heatmap-mode-vs" class="heatmap-toggle-btn">vs OMX30</button>
                 </div>
                 <p class="heatmap-note" id="heatmap-note">Period returns from time-weighted return (neutral to deposits &amp; withdrawals), the way a fund's monthly track record is reported.</p>
-                <h3 class="heatmap-subtitle">Monthly</h3>
-                <div id="monthly-heatmap" class="heatmap-scroll"></div>
-                <h3 class="heatmap-subtitle">Weekly</h3>
-                <div id="weekly-heatmap" class="heatmap-scroll"></div>
+                <div class="heatmap-grid">
+                    <div class="heatmap-panel">
+                        <h3 class="heatmap-subtitle">Monthly</h3>
+                        <div id="monthly-heatmap" class="heatmap-scroll"></div>
+                    </div>
+                    <div class="heatmap-panel">
+                        <h3 class="heatmap-subtitle">Weekly</h3>
+                        <div id="weekly-heatmap" class="heatmap-scroll"></div>
+                    </div>
+                </div>
             </div>
 
 
@@ -145,6 +162,7 @@
                     <span id="upload-status" class="upload-status"></span>
                 </div>
             </div>
+            </div><!-- /cards-grid -->
         </div>
     </div>
 

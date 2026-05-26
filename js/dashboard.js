@@ -29,7 +29,7 @@ const Dashboard = {
         }
     },
 
-    renderStats(stats, portfolioHistory = [], portfolioTWR = [], benchmarkTWR = []) {
+    renderStats(stats, benchmarkStats, portfolioHistory = [], portfolioTWR = [], benchmarkTWR = []) {
         const setValue = (id, text, cls) => {
             const el = document.getElementById(id);
             if (el) { el.textContent = text; el.className = 'stat-value' + (cls ? ' ' + cls : ''); }
@@ -44,26 +44,37 @@ const Dashboard = {
         };
         const signPct = (v, unit) => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(1) + (unit === 'pp' ? ' pp' : '%');
         const signCls = v => v >= 0 ? 'positive' : 'negative';
+        const rgb = v => `rgb(${v >= 0 ? this.GAIN_RGB : this.LOSS_RGB})`;
 
         // Total return since inception = cumulative TWR (neutral to deposit timing, the
         // same measure the rest of the dashboard reports).
         const lastTwr = portfolioTWR.length ? portfolioTWR[portfolioTWR.length - 1].twr : null;
         const lastBench = benchmarkTWR.length ? benchmarkTWR[benchmarkTWR.length - 1].twr : null;
+        // Alpha = annualized outperformance vs OMX30 (the headline marketing number).
+        const alpha = benchmarkStats ? stats.annualizedTWR - benchmarkStats.benchmarkAnnualizedTWR : null;
 
-        // Headline values (Net Profit and Total Return tinted by sign; the rest neutral).
-        setValue('total-value', Utils.formatCurrency(stats.portfolioValue));
-        setValue('net-profit', Utils.formatCurrency(stats.netProfit), signCls(stats.netProfit));
+        // Headline values: performance first (Total Return, Alpha), tinted by sign.
         setValue('total-return', lastTwr == null ? '—' : signPct(lastTwr, '%'), lastTwr == null ? '' : signCls(lastTwr));
+        setValue('alpha-ann', alpha == null ? '—' : signPct(alpha, 'pp') + '/yr', alpha == null ? '' : signCls(alpha));
+        setValue('net-profit', Utils.formatCurrency(stats.netProfit), signCls(stats.netProfit));
+        setValue('total-value', Utils.formatCurrency(stats.portfolioValue));
         setValue('cash-balance', Utils.formatCurrency(stats.cash));
         setValue('txn-costs-total', Utils.formatCurrency(stats.totalTransactionCosts));
 
-        // Sparklines: trend over the whole period.
+        // Sparklines: trend over the whole period. Alpha shows the cumulative gap to OMX30.
+        spark('spark-return', portfolioTWR.map(e => e.twr), rgb(lastTwr ?? 0));
+        spark('spark-alpha', this._outperformanceSeries(portfolioTWR, benchmarkTWR), rgb(alpha ?? 0));
+        spark('spark-profit', portfolioHistory.map(e => e.pnl), rgb(stats.netProfit));
         spark('spark-value', portfolioHistory.map(e => e.portfolioValue), '#2E86AB');
-        spark('spark-profit', portfolioHistory.map(e => e.pnl), `rgb(${signCls(stats.netProfit) === 'positive' ? this.GAIN_RGB : this.LOSS_RGB})`);
-        spark('spark-return', portfolioTWR.map(e => e.twr), `rgb(${(lastTwr ?? 0) >= 0 ? this.GAIN_RGB : this.LOSS_RGB})`);
         spark('spark-cash', portfolioHistory.map(e => e.portfolioValue > 0 ? (e.cash / e.portfolioValue) * 100 : 0), '#F18F01');
 
         // Deltas: every KPI gets a comparison so none stands context-free.
+        if (alpha != null) {
+            // Substantiate the alpha with the two annualized figures it's drawn from.
+            setDelta('delta-alpha', `${stats.annualizedTWR.toFixed(1)}% vs ${benchmarkStats.benchmarkAnnualizedTWR.toFixed(1)}% ann.`);
+        } else {
+            setDelta('delta-alpha', '');
+        }
         if (stats.totalCapitalIn > 0) {
             const roi = (stats.netProfit / stats.totalCapitalIn) * 100;
             setDelta('delta-profit', signPct(roi, '%') + ' on capital', signCls(roi));
@@ -82,7 +93,7 @@ const Dashboard = {
         setDelta('delta-costs', costPct.toFixed(2) + '% of value');
         setDelta('delta-value', ''); // value's story is its sparkline; no single delta fits
 
-        document.getElementById('dashboard').style.display = 'grid';
+        document.getElementById('dashboard').style.display = 'flex';
     },
 
     // Word-sized SVG sparkline (Tufte): a bare trend line with the last point marked, no
@@ -103,6 +114,21 @@ const Dashboard = {
         return `<svg class="sparkline" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true">`
             + `<polyline fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" points="${pts.join(' ')}" />`
             + `<circle cx="${lx}" cy="${ly}" r="2" fill="${color}" /></svg>`;
+    },
+
+    // Cumulative outperformance vs the benchmark, aligned to the portfolio's dates: the
+    // portfolio's cumulative TWR minus the benchmark's at the same day (carried forward
+    // when the benchmark lacks that day). This is the alpha curve — the widening gap.
+    _outperformanceSeries(portfolioTWR, benchmarkTWR) {
+        if (!portfolioTWR || !portfolioTWR.length || !benchmarkTWR || !benchmarkTWR.length) return [];
+        const benchByDay = {};
+        benchmarkTWR.forEach(e => { benchByDay[e.date.toISOString().slice(0, 10)] = e.twr; });
+        let lastBench = 0;
+        return portfolioTWR.map(e => {
+            const k = e.date.toISOString().slice(0, 10);
+            if (benchByDay[k] !== undefined) lastBench = benchByDay[k];
+            return e.twr - lastBench;
+        });
     },
 
     // Provenance line under the title: source, currency, and the date span the data
@@ -205,7 +231,9 @@ const Dashboard = {
         });
     },
 
-    _heatmapMode: 'absolute',
+    // Default to vs-OMX30: this is a performance pitch, so open on the alpha (green =
+    // months that beat the index). Falls back to absolute when no benchmark is present.
+    _heatmapMode: 'outperformance',
 
     // justETF-style returns heat maps. Defaults to the portfolio's own period returns;
     // a toggle switches to outperformance vs OMX30 (the portfolio's return minus the

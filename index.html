@@ -14,27 +14,43 @@
     <div class="container">
         <header>
             <h1>Portfolio Analysis</h1>
+            <p id="dashboard-meta" class="dashboard-meta"></p>
         </header>
 
         <div id="error-display" class="error-message"></div>
 
         <div id="dashboard" class="dashboard-grid" style="display: none;">
-            <!-- Portfolio-only stats (no meaningful baseline comparison) -->
+            <!-- Headline KPIs: each pairs the current value with a sparkline trend and a
+                 comparison (return on capital, vs OMX30, % of value) so no number stands
+                 context-free. -->
             <div class="card stat-box">
                 <div class="stat-value" id="total-value">Loading...</div>
                 <div class="stat-label">Portfolio Value</div>
-            </div>
-            <div class="card stat-box">
-                <div class="stat-value" id="cash-balance">Loading...</div>
-                <div class="stat-label">Cash Balance</div>
+                <div class="stat-spark" id="spark-value"></div>
+                <div class="stat-delta" id="delta-value"></div>
             </div>
             <div class="card stat-box">
                 <div class="stat-value" id="net-profit">Loading...</div>
                 <div class="stat-label">Net Profit</div>
+                <div class="stat-spark" id="spark-profit"></div>
+                <div class="stat-delta" id="delta-profit"></div>
+            </div>
+            <div class="card stat-box">
+                <div class="stat-value" id="total-return">Loading...</div>
+                <div class="stat-label">Total Return (TWR)</div>
+                <div class="stat-spark" id="spark-return"></div>
+                <div class="stat-delta" id="delta-return"></div>
+            </div>
+            <div class="card stat-box">
+                <div class="stat-value" id="cash-balance">Loading...</div>
+                <div class="stat-label">Cash Balance</div>
+                <div class="stat-spark" id="spark-cash"></div>
+                <div class="stat-delta" id="delta-cash"></div>
             </div>
             <div class="card stat-box">
                 <div class="stat-value" id="txn-costs-total">Loading...</div>
                 <div class="stat-label">Transaction Costs</div>
+                <div class="stat-delta" id="delta-costs"></div>
             </div>
 
             <!-- Performance comparison vs OMX30 -->

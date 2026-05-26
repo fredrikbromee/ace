@@ -4,6 +4,10 @@
     --card-bg: #ffffff;
     --text-color: #333333;
     --error-color: #d32f2f;
+    /* Canonical up/down palette, shared dashboard-wide (heat map, chart bars, table
+       text). JS mirrors these as Dashboard.GAIN_RGB / LOSS_RGB. */
+    --color-gain: #2e7d32;
+    --color-loss: #c62828;
 }
 
 body {
@@ -31,6 +35,13 @@ h1 {
     color: var(--primary-color);
     margin-bottom: 5px;
     font-size: 1.5em;
+}
+
+.dashboard-meta {
+    color: #666;
+    font-size: 0.85em;
+    margin: 0;
+    font-variant-numeric: tabular-nums;
 }
 
 .dashboard-grid {
@@ -77,11 +88,11 @@ h1 {
 }
 
 .stat-value.positive, .positive {
-    color: #2e7d32;
+    color: var(--color-gain);
 }
 
 .stat-value.negative, .negative {
-    color: #c62828;
+    color: var(--color-loss);
 }
 
 .stat-label {
@@ -93,6 +104,34 @@ h1 {
     word-wrap: break-word;
     hyphens: auto;
     padding: 0 4px;
+}
+
+/* KPI sparkline + delta: word-sized trend and a comparison under each headline value. */
+.stat-spark {
+    line-height: 0;
+    margin: 6px 0 2px;
+    min-height: 22px;
+}
+
+.stat-spark .sparkline {
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.stat-delta {
+    font-size: clamp(0.6em, 1.2vw, 0.75em);
+    color: #888;
+    font-variant-numeric: tabular-nums;
+    min-height: 1em;
+    white-space: nowrap;
+}
+
+.stat-delta.positive {
+    color: var(--color-gain);
+}
+
+.stat-delta.negative {
+    color: var(--color-loss);
 }
 
 .upload-help {
@@ -169,6 +208,14 @@ th, td {
 th {
     background-color: #f8f9fa;
     font-weight: 600;
+}
+
+/* Holdings table: right-align numeric columns (everything but the Stock name) and
+   use tabular figures so digits line up by place for easy column scanning. */
+#holdings-table td:not(:first-child),
+#holdings-table th:not(:first-child) {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
 }
 
 /* Timeline annotations: chart markers are always visible; clicking one shows
@@ -356,6 +403,17 @@ th {
     padding: clamp(2px, 0.5vw, 6px) clamp(2px, 0.8vw, 8px);
 }
 
+/* Right-align the numeric columns — Qty, Price, Value, Fee, P&L (cols 4–8) — with
+   tabular figures so digits line up by place, matching the holdings table. Date,
+   Action, and Stock (cols 1–3) stay left-aligned. */
+#transactions-grid-container .gridjs-td:nth-child(n + 4) {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+#transactions-grid-container .gridjs-th:nth-child(n + 4) .gridjs-th-content {
+    text-align: right;
+}
+
 /* Returns heat maps */
 .heatmap-note {
     color: #666;
@@ -449,6 +507,16 @@ th {
     font-weight: 700;
     border-left: 2px solid #eee;
 }
+
+/* Totals carry no heat fill — keep the number readable and tint by sign only
+   (categorical up/down, no magnitude), so the column reads at a glance without
+   competing with the coloured period cells. */
+.heatmap-table .heat-cell.total-cell {
+    background-color: #fff;
+    color: var(--text-color);
+}
+.heatmap-table .heat-cell.total-cell.pos { color: var(--color-gain); }
+.heatmap-table .heat-cell.total-cell.neg { color: var(--color-loss); }
 
 .heatmap-table .heat-cell {
     background-color: #f6f6f9;

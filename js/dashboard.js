@@ -3,6 +3,17 @@ const Dashboard = {
     portfolioValueChart: null,
     twrChart: null,
 
+    // Canonical up/down palette as RGB triples (callers add their own alpha). Mirrors
+    // --color-gain / --color-loss in styles.css so heat-map cells, chart bars, and table
+    // text all read the same green/red.
+    GAIN_RGB: '46, 125, 50',
+    LOSS_RGB: '198, 40, 40',
+
+    // OMX30 benchmark line colour. Deliberately a neutral gray, not red: red is reserved
+    // page-wide for "loss", so the benchmark recedes as the reference (ground) while the
+    // blue portfolio stays the figure.
+    BENCHMARK_COLOR: '#6c757d',
+
     cleanup() {
         if (this.portfolioValueChart) {
             this.portfolioValueChart.destroy();
@@ -18,12 +29,95 @@ const Dashboard = {
         }
     },
 
-    renderStats(stats) {
-        document.getElementById('total-value').textContent = Utils.formatCurrency(stats.portfolioValue);
-        document.getElementById('cash-balance').textContent = Utils.formatCurrency(stats.cash);
-        document.getElementById('txn-costs-total').textContent = Utils.formatCurrency(stats.totalTransactionCosts);
-        document.getElementById('net-profit').textContent = Utils.formatCurrency(stats.netProfit);
+    renderStats(stats, portfolioHistory = [], portfolioTWR = [], benchmarkTWR = []) {
+        const setValue = (id, text, cls) => {
+            const el = document.getElementById(id);
+            if (el) { el.textContent = text; el.className = 'stat-value' + (cls ? ' ' + cls : ''); }
+        };
+        const setDelta = (id, text, cls) => {
+            const el = document.getElementById(id);
+            if (el) { el.textContent = text; el.className = 'stat-delta' + (cls ? ' ' + cls : ''); }
+        };
+        const spark = (id, series, color) => {
+            const el = document.getElementById(id);
+            if (el) el.innerHTML = this._sparkline(series, color);
+        };
+        const signPct = (v, unit) => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(1) + (unit === 'pp' ? ' pp' : '%');
+        const signCls = v => v >= 0 ? 'positive' : 'negative';
+
+        // Total return since inception = cumulative TWR (neutral to deposit timing, the
+        // same measure the rest of the dashboard reports).
+        const lastTwr = portfolioTWR.length ? portfolioTWR[portfolioTWR.length - 1].twr : null;
+        const lastBench = benchmarkTWR.length ? benchmarkTWR[benchmarkTWR.length - 1].twr : null;
+
+        // Headline values (Net Profit and Total Return tinted by sign; the rest neutral).
+        setValue('total-value', Utils.formatCurrency(stats.portfolioValue));
+        setValue('net-profit', Utils.formatCurrency(stats.netProfit), signCls(stats.netProfit));
+        setValue('total-return', lastTwr == null ? '—' : signPct(lastTwr, '%'), lastTwr == null ? '' : signCls(lastTwr));
+        setValue('cash-balance', Utils.formatCurrency(stats.cash));
+        setValue('txn-costs-total', Utils.formatCurrency(stats.totalTransactionCosts));
+
+        // Sparklines: trend over the whole period.
+        spark('spark-value', portfolioHistory.map(e => e.portfolioValue), '#2E86AB');
+        spark('spark-profit', portfolioHistory.map(e => e.pnl), `rgb(${signCls(stats.netProfit) === 'positive' ? this.GAIN_RGB : this.LOSS_RGB})`);
+        spark('spark-return', portfolioTWR.map(e => e.twr), `rgb(${(lastTwr ?? 0) >= 0 ? this.GAIN_RGB : this.LOSS_RGB})`);
+        spark('spark-cash', portfolioHistory.map(e => e.portfolioValue > 0 ? (e.cash / e.portfolioValue) * 100 : 0), '#F18F01');
+
+        // Deltas: every KPI gets a comparison so none stands context-free.
+        if (stats.totalCapitalIn > 0) {
+            const roi = (stats.netProfit / stats.totalCapitalIn) * 100;
+            setDelta('delta-profit', signPct(roi, '%') + ' on capital', signCls(roi));
+        } else {
+            setDelta('delta-profit', '');
+        }
+        if (lastTwr != null && lastBench != null) {
+            const gap = lastTwr - lastBench;
+            setDelta('delta-return', signPct(gap, 'pp') + ' vs OMX30', signCls(gap));
+        } else {
+            setDelta('delta-return', '');
+        }
+        const cashPct = stats.portfolioValue > 0 ? (stats.cash / stats.portfolioValue) * 100 : 0;
+        setDelta('delta-cash', cashPct.toFixed(1) + '% of value'); // neutral ratio, not good/bad
+        const costPct = stats.portfolioValue > 0 ? (stats.totalTransactionCosts / stats.portfolioValue) * 100 : 0;
+        setDelta('delta-costs', costPct.toFixed(2) + '% of value');
+        setDelta('delta-value', ''); // value's story is its sparkline; no single delta fits
+
         document.getElementById('dashboard').style.display = 'grid';
+    },
+
+    // Word-sized SVG sparkline (Tufte): a bare trend line with the last point marked, no
+    // axes or labels. `series` is plotted left→right and auto-scaled to its own min/max.
+    _sparkline(series, color = '#888') {
+        const vals = (series || []).filter(v => v != null && !isNaN(v));
+        if (vals.length < 2) return '';
+        const w = 84, h = 22, pad = 2.5;
+        const min = Math.min(...vals), max = Math.max(...vals);
+        const range = (max - min) || 1;
+        const stepX = (w - pad * 2) / (vals.length - 1);
+        const pts = vals.map((v, i) => {
+            const x = pad + i * stepX;
+            const y = pad + (h - pad * 2) * (1 - (v - min) / range);
+            return `${x.toFixed(1)},${y.toFixed(1)}`;
+        });
+        const [lx, ly] = pts[pts.length - 1].split(',');
+        return `<svg class="sparkline" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true">`
+            + `<polyline fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" points="${pts.join(' ')}" />`
+            + `<circle cx="${lx}" cy="${ly}" r="2" fill="${color}" /></svg>`;
+    },
+
+    // Provenance line under the title: source, currency, and the date span the data
+    // covers (the end date doubles as the "as of" — the most recent day with data).
+    renderMeta(portfolioHistory) {
+        const el = document.getElementById('dashboard-meta');
+        if (!el) return;
+        if (!portfolioHistory || !portfolioHistory.length) {
+            el.textContent = '';
+            return;
+        }
+        const day = d => d.toISOString().slice(0, 10);
+        const first = day(portfolioHistory[0].date);
+        const last = day(portfolioHistory[portfolioHistory.length - 1].date);
+        el.textContent = `Avanza portfolio · SEK · ${first} → ${last}`;
     },
 
     renderComparisonTable(stats, benchmarkStats, portfolioTWR, benchmarkTWR) {
@@ -36,73 +130,62 @@ const Dashboard = {
 
         const fmtPctAbs = v => v == null ? '—' : v.toFixed(2) + '%';
         const fmtRatio = v => v == null ? '—' : v.toFixed(2);
-        const fmtDiffPp = (a, b) => {
-            if (a == null || b == null) return '—';
-            const d = a - b;
-            return (d >= 0 ? '+' : '') + d.toFixed(2) + ' pp';
-        };
-        const fmtDiffRatio = (a, b) => {
-            if (a == null || b == null) return '—';
-            const d = a - b;
-            return (d >= 0 ? '+' : '') + d.toFixed(2);
+        const fmtSigned = (d, unit) => d == null ? '—' : (d >= 0 ? '+' : '−') + Math.abs(d).toFixed(2) + unit;
+
+        // Advantage of `you` over `bench`, oriented so positive ALWAYS means "better than
+        // OMX30" — for lower-is-better metrics (drawdown) that flips to bench − you. One
+        // source for both the printed number and its colour, so the sign and the green/red
+        // can never disagree (the bug this replaced: a worse drawdown showing "+7 pp").
+        const advantage = (you, bench, lowerIsBetter) => {
+            if (you == null || bench == null) return null;
+            return lowerIsBetter ? bench - you : you - bench;
         };
 
-        const rows = [
+        const specs = [
             {
-                label: 'Annualized TWR',
-                you: fmtPctAbs(stats.annualizedTWR),
-                bench: fmtPctAbs(benchmarkStats.benchmarkAnnualizedTWR),
-                diff: fmtDiffPp(stats.annualizedTWR, benchmarkStats.benchmarkAnnualizedTWR),
-                diffSign: stats.annualizedTWR - benchmarkStats.benchmarkAnnualizedTWR,
-                lowerIsBetter: false,
+                label: 'Annualized TWR', you: stats.annualizedTWR, bench: benchmarkStats.benchmarkAnnualizedTWR,
+                kind: 'pct', lowerIsBetter: false,
                 help: 'Time-Weighted Return scaled to a full year. Removes the effect of when capital was added or withdrawn — a fair measure of pure strategy performance.'
             },
             {
-                label: 'CAGR',
-                you: fmtPctAbs(stats.cagr),
-                bench: fmtPctAbs(benchmarkStats.benchmarkCAGR),
-                diff: fmtDiffPp(stats.cagr, benchmarkStats.benchmarkCAGR),
-                diffSign: stats.cagr - benchmarkStats.benchmarkCAGR,
-                lowerIsBetter: false,
+                label: 'CAGR', you: stats.cagr, bench: benchmarkStats.benchmarkCAGR,
+                kind: 'pct', lowerIsBetter: false,
                 help: 'Compound Annual Growth Rate — the smooth yearly rate that would carry the starting value to the ending value over the period.'
             },
             {
-                label: 'Sharpe',
-                you: fmtRatio(pStats.sharpe),
-                bench: fmtRatio(bStats.sharpe),
-                diff: fmtDiffRatio(pStats.sharpe, bStats.sharpe),
-                diffSign: (pStats.sharpe ?? 0) - (bStats.sharpe ?? 0),
-                lowerIsBetter: false,
+                label: 'Sharpe', you: pStats.sharpe, bench: bStats.sharpe,
+                kind: 'ratio', lowerIsBetter: false,
                 help: 'Annualized return divided by annualized volatility (std of daily returns). Higher = more return per unit of total risk. >1 is solid, >2 is strong.'
             },
             {
-                label: 'Sortino',
-                you: fmtRatio(pStats.sortino),
-                bench: fmtRatio(bStats.sortino),
-                diff: fmtDiffRatio(pStats.sortino, bStats.sortino),
-                diffSign: (pStats.sortino ?? 0) - (bStats.sortino ?? 0),
-                lowerIsBetter: false,
+                label: 'Sortino', you: pStats.sortino, bench: bStats.sortino,
+                kind: 'ratio', lowerIsBetter: false,
                 help: 'Like Sharpe but penalizes only downside volatility. Rewards strategies that limit losing days while still capturing upside.'
             },
             {
-                label: 'Max Drawdown',
-                you: fmtPctAbs(pStats.maxDrawdown * 100),
-                bench: fmtPctAbs(bStats.maxDrawdown * 100),
-                diff: fmtDiffPp(pStats.maxDrawdown * 100, bStats.maxDrawdown * 100),
-                diffSign: -(pStats.maxDrawdown - bStats.maxDrawdown), // less drawdown = better
-                lowerIsBetter: true,
-                help: 'Largest peak-to-trough decline experienced during the period. Lower (less negative) is better.'
+                label: 'Max Drawdown', you: pStats.maxDrawdown * 100, bench: bStats.maxDrawdown * 100,
+                kind: 'pct', lowerIsBetter: true,
+                help: 'Largest peak-to-trough decline experienced during the period. Lower is better, so the Diff is shown as your advantage: positive means you drew down less than OMX30.'
             },
             {
-                label: 'Calmar',
-                you: fmtRatio(pStats.calmar),
-                bench: fmtRatio(bStats.calmar),
-                diff: fmtDiffRatio(pStats.calmar, bStats.calmar),
-                diffSign: (pStats.calmar ?? 0) - (bStats.calmar ?? 0),
-                lowerIsBetter: false,
+                label: 'Calmar', you: pStats.calmar, bench: bStats.calmar,
+                kind: 'ratio', lowerIsBetter: false,
                 help: 'CAGR divided by absolute max drawdown. Measures how much annual return you got per unit of worst loss endured.'
             }
         ];
+
+        const rows = specs.map(s => {
+            const fmtVal = s.kind === 'pct' ? fmtPctAbs : fmtRatio;
+            const adv = advantage(s.you, s.bench, s.lowerIsBetter);
+            return {
+                label: s.label,
+                you: fmtVal(s.you),
+                bench: fmtVal(s.bench),
+                diff: fmtSigned(adv, s.kind === 'pct' ? ' pp' : ''),
+                diffSign: adv ?? 0,
+                help: s.help
+            };
+        });
 
         rows.forEach(r => {
             const tr = document.createElement('tr');
@@ -169,19 +252,55 @@ const Dashboard = {
             return;
         }
 
-        monthlyEl.innerHTML = this._buildMonthlyHeatmap(HeatmapEngine.monthlyGrid(portfolioTWR, benchmarkTWR, mode));
-        weeklyEl.innerHTML = this._buildWeeklyHeatmap(HeatmapEngine.weeklyGrid(portfolioTWR, benchmarkTWR, mode));
+        const monthlyGrid = HeatmapEngine.monthlyGrid(portfolioTWR, benchmarkTWR, mode);
+        const weeklyGrid = HeatmapEngine.weeklyGrid(portfolioTWR, benchmarkTWR, mode);
+        // One colour scale across both grids so a given shade means the same return
+        // everywhere — weeks reading cooler than months is the honest signal, not a bug.
+        const maxAbs = Math.max(this._gridMaxAbs(monthlyGrid), this._gridMaxAbs(weeklyGrid));
+        monthlyEl.innerHTML = this._buildMonthlyHeatmap(monthlyGrid, maxAbs);
+        weeklyEl.innerHTML = this._buildWeeklyHeatmap(weeklyGrid, maxAbs);
     },
 
-    // Diverging green/red background scaled to the strongest cell in the grid.
+    // Diverging green/red background scaled to the strongest cell across both grids.
+    // Intensity is linear in magnitude (colour ∝ value, lie factor ≈ 1); the 0.12 alpha
+    // floor keeps small returns visible without inflating them the way a power curve did.
     _heatStyle(ret, maxAbs) {
         if (ret == null || isNaN(ret)) return '';
         const mag = maxAbs > 0 ? Math.min(1, Math.abs(ret) / maxAbs) : 0;
-        const intensity = Math.pow(mag, 0.7);
-        const alpha = (0.12 + intensity * 0.8).toFixed(3);
-        const rgb = ret >= 0 ? '46, 125, 50' : '198, 40, 40';
-        const fg = intensity > 0.55 ? '#fff' : 'inherit';
+        const alpha = (0.12 + mag * 0.8).toFixed(3);
+        const rgb = ret >= 0 ? this.GAIN_RGB : this.LOSS_RGB;
+        const fg = mag > 0.55 ? '#fff' : 'inherit';
         return `background-color: rgba(${rgb}, ${alpha}); color: ${fg};`;
+    },
+
+    // Largest |cell value| in a grid, ignoring totals (totals render neutral). Works for
+    // both the monthly grid ({ years, byYearMonth }) and the weekly grid ({ rows[].weeks }).
+    _gridMaxAbs(grid) {
+        let max = 0;
+        if (grid.years) {
+            grid.years.forEach(y => {
+                for (let m = 0; m < 12; m++) {
+                    const p = grid.byYearMonth[y][m];
+                    if (p && p.value != null) max = Math.max(max, Math.abs(p.value));
+                }
+            });
+        }
+        if (grid.rows) {
+            grid.rows.forEach(r => r.weeks.forEach(p => {
+                if (p && p.value != null) max = Math.max(max, Math.abs(p.value));
+            }));
+        }
+        return max;
+    },
+
+    // Year/month totals render with no heat fill: a total is a different quantity than a
+    // period cell, so colouring it on the cell scale either saturated (long runs of gains)
+    // or invited a false comparison. The bold signed number carries it; a sign-only tint
+    // (CSS .pos/.neg) keeps up/down legible without encoding magnitude.
+    _totalCell(v, tooltip) {
+        if (v == null || isNaN(v)) return '<td class="heat-cell total-cell"></td>';
+        const cls = v > 0 ? ' pos' : v < 0 ? ' neg' : '';
+        return `<td class="heat-cell total-cell${cls}" title="${tooltip}">${this._fmtCell(v)}</td>`;
     },
 
     // Full value with unit, used in tooltips. unit '%' for returns, ' pp' for outperformance.
@@ -210,22 +329,13 @@ const Dashboard = {
         return date.toISOString().slice(0, 10);
     },
 
-    _buildMonthlyHeatmap(grid) {
+    _buildMonthlyHeatmap(grid, maxAbs) {
         if (!grid.years.length) return '<p class="heatmap-empty">No monthly data.</p>';
 
         const unit = grid.unit;
         const vs = unit === 'pp' ? ' vs OMX30' : '';
 
-        // Scale colours off month cells only, so a big year total can't wash everything out.
-        let maxAbs = 0;
-        grid.years.forEach(y => {
-            for (let m = 0; m < 12; m++) {
-                const p = grid.byYearMonth[y][m];
-                if (p && p.value != null) maxAbs = Math.max(maxAbs, Math.abs(p.value));
-            }
-        });
-
-        const head = ['Year', ...HeatmapEngine.MONTHS, 'Year']
+        const head = ['Year', ...HeatmapEngine.MONTHS, 'Total']
             .map((h, i) => `<th${i === 0 ? ' class="row-head"' : ''}${i === 13 ? ' class="total-head"' : ''}>${h}</th>`)
             .join('');
 
@@ -237,25 +347,22 @@ const Dashboard = {
                 cells.push(this._cell(p, maxAbs, tip));
             }
             const total = grid.yearTotals[year];
-            const totalCell = `<td class="heat-cell total-cell" style="${this._heatStyle(total, maxAbs)}" title="${year} total: ${this._fmtVal(total, unit)}${vs}">${this._fmtCell(total)}</td>`;
+            const totalCell = this._totalCell(total, `${year} total: ${this._fmtVal(total, unit)}${vs}`);
             return `<tr><th class="row-head">'${String(year).slice(2)}</th>${cells.join('')}${totalCell}</tr>`;
         }).join('');
 
         return `<table class="heatmap-table"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>`;
     },
 
-    _buildWeeklyHeatmap(grid) {
+    _buildWeeklyHeatmap(grid, maxAbs) {
         if (!grid.rows.length) return '<p class="heatmap-empty">No weekly data.</p>';
 
         const unit = grid.unit;
         const vs = unit === 'pp' ? ' vs OMX30' : '';
 
-        let maxAbs = 0;
-        grid.rows.forEach(r => r.weeks.forEach(p => { if (p.value != null) maxAbs = Math.max(maxAbs, Math.abs(p.value)); }));
-
         const colHeads = [];
         for (let c = 0; c < grid.maxCols; c++) colHeads.push(`<th>W${c + 1}</th>`);
-        const head = `<th class="row-head">Month</th>${colHeads.join('')}<th class="total-head">Month</th>`;
+        const head = `<th class="row-head">Month</th>${colHeads.join('')}<th class="total-head">Total</th>`;
 
         const rows = grid.rows.map(row => {
             const [y, m] = row.monthKey.split('-');
@@ -266,7 +373,7 @@ const Dashboard = {
                 const tip = (p && p.value != null) ? `${this._isoDay(p.startDate)} → ${this._isoDay(p.endDate)}: ${this._fmtVal(p.value, unit)}${vs}` : '';
                 cells.push(this._cell(p, maxAbs, tip));
             }
-            const totalCell = `<td class="heat-cell total-cell" style="${this._heatStyle(row.total, maxAbs)}" title="${label} total: ${this._fmtVal(row.total, unit)}${vs}">${this._fmtCell(row.total)}</td>`;
+            const totalCell = this._totalCell(row.total, `${label} total: ${this._fmtVal(row.total, unit)}${vs}`);
             return `<tr><th class="row-head">${label}</th>${cells.join('')}${totalCell}</tr>`;
         }).join('');
 
@@ -348,18 +455,18 @@ const Dashboard = {
         const labels = [];
         const portfolioValues = [];
         const benchmarkValues = [];
-        const cashBalances = [];
+        const cashPct = []; // cash as % of total portfolio value (cash is a slice of it)
 
         let lastBenchmarkValue = 0;
 
         portfolioDates.forEach(date => {
             const pEntry = portfolioByDate[date];
             const bEntry = benchmarkByDate[date];
-            
+
             labels.push(date);
             portfolioValues.push(pEntry.portfolioValue);
-            cashBalances.push(pEntry.cash);
-            
+            cashPct.push(pEntry.portfolioValue > 0 ? (pEntry.cash / pEntry.portfolioValue) * 100 : 0);
+
             if (bEntry) {
                 benchmarkValues.push(bEntry.benchmarkValue);
                 lastBenchmarkValue = bEntry.benchmarkValue;
@@ -378,10 +485,9 @@ const Dashboard = {
                         label: 'Your Portfolio Value (SEK)',
                         data: portfolioValues,
                         borderColor: '#2E86AB',
-                        backgroundColor: 'rgba(46, 134, 171, 0.1)',
                         yAxisID: 'y',
-                        tension: 0.1,
-                        fill: true,
+                        tension: 0,
+                        fill: false,
                         borderWidth: 2,
                         pointRadius: 0,
                         pointHoverRadius: 4
@@ -389,10 +495,9 @@ const Dashboard = {
                     {
                         label: 'OMX30 Value (SEK)',
                         data: benchmarkValues,
-                        borderColor: '#C73E1D',
-                        backgroundColor: 'rgba(199, 62, 29, 0.05)',
+                        borderColor: this.BENCHMARK_COLOR,
                         yAxisID: 'y',
-                        tension: 0.1,
+                        tension: 0,
                         fill: false,
                         borderWidth: 2,
                         borderDash: [5, 5],
@@ -400,13 +505,12 @@ const Dashboard = {
                         pointHoverRadius: 4
                     },
                     {
-                        label: 'Cash Balance (SEK)',
-                        data: cashBalances,
+                        label: 'Cash (% of value)',
+                        data: cashPct,
                         borderColor: '#F18F01',
-                        backgroundColor: 'rgba(241, 143, 1, 0.1)',
                         yAxisID: 'y1',
                         borderDash: [3, 3],
-                        tension: 0.1,
+                        tension: 0,
                         fill: false,
                         borderWidth: 1.5,
                         pointRadius: 0,
@@ -430,7 +534,9 @@ const Dashboard = {
                                     label += ': ';
                                 }
                                 if (context.parsed.y !== null) {
-                                    label += new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK' }).format(context.parsed.y);
+                                    label += context.dataset.yAxisID === 'y1'
+                                        ? context.parsed.y.toFixed(1) + '%'
+                                        : new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK' }).format(context.parsed.y);
                                 }
                                 return label;
                             }
@@ -466,13 +572,18 @@ const Dashboard = {
                         type: 'linear',
                         display: true,
                         position: 'right',
+                        min: 0,
+                        max: 100,
                         grid: {
                             drawOnChartArea: false,
                         },
                         title: {
                             display: true,
-                            text: 'Cash (SEK)',
+                            text: 'Cash (% of value)',
                             color: '#F18F01'
+                        },
+                        ticks: {
+                            callback: v => v + '%'
                         }
                     }
                 }
@@ -524,7 +635,7 @@ const Dashboard = {
             } else {
                 const delta = (pTWR - prevPortfolioTWR) - (lastBenchmarkTWR - prevBenchmarkTWR);
                 dailyDeltas.push(delta);
-                barColors.push(delta >= 0 ? 'rgba(76, 175, 80, 0.75)' : 'rgba(244, 67, 54, 0.75)');
+                barColors.push(delta >= 0 ? `rgba(${this.GAIN_RGB}, 0.75)` : `rgba(${this.LOSS_RGB}, 0.75)`);
             }
 
             prevPortfolioTWR = pTWR;
@@ -553,7 +664,7 @@ const Dashboard = {
                         borderColor: '#2E86AB',
                         backgroundColor: 'rgba(46, 134, 171, 0.1)',
                         yAxisID: 'y',
-                        tension: 0.1,
+                        tension: 0,
                         fill: false,
                         borderWidth: 2,
                         pointRadius: 0,
@@ -564,10 +675,9 @@ const Dashboard = {
                         type: 'line',
                         label: 'OMX30 TWR (Buy & Hold)',
                         data: benchmarkTWRValues,
-                        borderColor: '#C73E1D',
-                        backgroundColor: 'rgba(199, 62, 29, 0.05)',
+                        borderColor: this.BENCHMARK_COLOR,
                         yAxisID: 'y',
-                        tension: 0.1,
+                        tension: 0,
                         fill: false,
                         borderWidth: 2,
                         borderDash: [5, 5],
@@ -825,7 +935,16 @@ const Dashboard = {
                 'Price',
                 'Value',
                 'Fee',
-                'P&L'
+                {
+                    // Colour P&L green/red on the shared scheme (same as the holdings
+                    // table); cell holds the raw number so the formatter can read its sign.
+                    name: 'P&L',
+                    formatter: cell => {
+                        if (cell === null || cell === undefined || cell === '') return '';
+                        const cls = cell >= 0 ? 'positive' : 'negative';
+                        return gridjs.html(`<span class="${cls}">${Utils.formatCurrency(cell)}</span>`);
+                    }
+                }
             ],
             data: gridData.map(row => [
                 row.date,
@@ -835,7 +954,7 @@ const Dashboard = {
                 row.price ? Utils.formatCurrency(row.price) : '',
                 Utils.formatCurrency(row.totalValue),
                 row.feeDisplay || '',
-                row.pnl !== null && row.pnl !== undefined ? Utils.formatCurrency(row.pnl) : ''
+                row.pnl !== null && row.pnl !== undefined ? row.pnl : ''
             ]),
             search: true,
             sort: false,

@@ -11,6 +11,20 @@ DEST_STOCKS="$PROJECT_DIR/data/stocks"
 DEST_DATA="$PROJECT_DIR/data"
 TRANSACTIONS="$PROJECT_DIR/transactions.csv"
 
+# Files NOT to overwrite from the source. EODHD mishandled ELUX-B's 2026 split
+# and ships a corrupted `Close` column (historical prices inflated ~1.82x), which
+# wrecks NAV/TWR on the days ELUX was held. The committed ELUX-B.ST.csv is
+# hand-corrected; leave it alone until EODHD fixes the data upstream.
+BLACKLIST=("ELUX-B.ST.csv")
+
+is_blacklisted() {
+    local name="$1"
+    for b in "${BLACKLIST[@]}"; do
+        [[ "$name" == "$b" ]] && return 0
+    done
+    return 1
+}
+
 # Find oldest transaction date from transactions.csv
 # Skip header, extract date column, sort, take first
 OLDEST_DATE=$(tail -n +2 "$TRANSACTIONS" | cut -d',' -f1 | sort | head -1)
@@ -38,6 +52,10 @@ filter_csv() {
 # Copy all .ST.csv stock files from source
 for src in "$SOURCE_DIR"/*.ST.csv; do
     file="$(basename "$src")"
+    if is_blacklisted "$file"; then
+        echo "Skipping $file (blacklisted — keeping committed version)"
+        continue
+    fi
     filter_csv "$src" "$DEST_STOCKS/$file" "$OLDEST_DATE"
     lines=$(( $(wc -l < "$DEST_STOCKS/$file") - 1 ))
     echo "Copied $file ($lines data rows)"

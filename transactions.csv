@@ -1,4 +1,5 @@
 Date,Account,Action,Stock,Quantity,Price,Total_Value
+2026-06-10,6530734,Köp,Ericsson B,895,111.55,-99896.25
 2026-06-08,6530734,Sälj,Swedbank A,-1494,334.20,499195.80
 2026-06-03,6530734,Köp,Handelsbanken A,3712,134.45,-499177.40
 2026-06-03,6530734,Köp,Swedbank A,1494,334.00,-499095.00

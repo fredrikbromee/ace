@@ -6,3 +6,4 @@ Date,Title,Description
 2026-03-09,"Iran war - oversold","Sold positions at way too low price - got hit in a low-liquidity opening auction. Should have held - fixed in next strategy update."
 2026-03-24,"Switch to high-conviction entry, patient exit.","New more picky selection logic based on model inputs. Fixed sell prices."
 2026-03-31,"Fix bug that avoided some sells","Pipeline bugs that changed strategy inputs, prior daily signals were running on slightly wrong inputs."
+2026-06-24,"Didn't follow the sell suggestion","Too in love with ERIC, didn't trust the toxic sell"
